@@ -15,33 +15,55 @@ const Login = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
 
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
 
-    // Simulate login validation
-    if (email && password) {
-      // Store login state
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("userEmail", email);
-      
-      toast({
-        title: "Login Successful",
-        description: "Welcome to Siphy",
+    try {
+      const response = await fetch('https://palmconnect.co/user/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
       });
-      
-      // Redirect to dashboard
-      navigate("/dashboard");
-    } else {
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        // Handle HTTP errors
+        throw new Error(data.message || 'Login failed');
+      }
+
+      // Assuming the API returns { token: '...' }
+      const { token } = data;
+      if (!token) {
+        throw new Error('No token returned from server');
+      }
+
+      // Store token and user info
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('userEmail', email);
+      localStorage.setItem('isLoggedIn', 'true');
+
       toast({
-        title: "Login Failed",
-        description: "Please enter both email and password",
-        variant: "destructive",
+        title: 'Login Successful',
+        description: 'Welcome to Siphy',
       });
+
+      navigate('/dashboard');
+    } catch (error: any) {
+      toast({
+        title: 'Login Failed',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
     }
-    
-    setIsLoading(false);
   };
+
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted p-4">

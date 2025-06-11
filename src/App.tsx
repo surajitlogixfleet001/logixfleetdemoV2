@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -21,41 +20,52 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public Routes */}
           <Route path="/" element={<Login />} />
-          <Route 
-            path="/dashboard" 
+
+          {/* Protected Routes */}
+          <Route
+            path="/dashboard"
             element={
               <ProtectedRoute>
                 <Index />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/dashboard/vehicles" 
+          <Route
+            path="/dashboard/vehicles"
             element={
               <ProtectedRoute>
                 <Vehicles />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/dashboard/fuel-report" 
+          <Route
+            path="/dashboard/fuel-report"
             element={
               <ProtectedRoute>
                 <FuelReport />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route 
-            path="/dashboard/fuel-theft" 
+          <Route
+            path="/dashboard/fuel-theft"
             element={
               <ProtectedRoute>
                 <FuelTheft />
               </ProtectedRoute>
-            } 
+            }
           />
-          <Route path="/" element={<Navigate to="/" replace />} />
-          {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+
+          {/* Redirect root after login (optional) */}
+          {/*
+          <Route
+            path="/"
+            element={<Navigate to="/dashboard" replace />}
+          />
+          */}
+
+          {/* Catch-all for 404 */}
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

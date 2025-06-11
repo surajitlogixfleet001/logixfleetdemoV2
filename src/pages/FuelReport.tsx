@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,84 +12,96 @@ import { Pagination, PaginationContent, PaginationItem, PaginationLink, Paginati
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
-import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, ChevronLeft, ChevronRight } from "lucide-react";
+import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
 
 interface SensorData {
-  id: string;
+  id: number;
+  vehicle: number;
   vehicle_name: string;
   timestamp: string;
-  fuel_level: number;
-  location_latitude: number;
-  location_longitude: number;
+  timestamp_display: string;
+  fuel_level: string;
+  location: string;
   speed: number;
   notes: string;
+  latitude: string;
+  longitude: string;
+  altitude: string | null;
+  satellites: number;
+  ignition: boolean;
+  movement: boolean;
 }
 
-// Mock data for demonstration
-const mockSensorData: SensorData[] = [
-  {
-    id: "1",
-    vehicle_name: "Fleet Vehicle 001",
-    timestamp: "2024-12-10T14:30:00Z",
-    fuel_level: 75.5,
-    location_latitude: -1.2921,
-    location_longitude: 36.8219,
-    speed: 60,
-    notes: "Normal operation"
-  },
-  {
-    id: "2",
-    vehicle_name: "Fleet Vehicle 002",
-    timestamp: "2024-12-10T09:15:00Z",
-    fuel_level: 68.0,
-    location_latitude: -1.2850,
-    location_longitude: 36.8200,
-    speed: 45,
-    notes: "Slowing down in urban area"
-  },
-  {
-    id: "3",
-    vehicle_name: "Fleet Vehicle 003",
-    timestamp: "2024-12-09T23:45:00Z",
-    fuel_level: 82.1,
-    location_latitude: -1.2950,
-    location_longitude: 36.8180,
-    speed: 0,
-    notes: "Parked overnight"
-  },
-  {
-    id: "4",
-    vehicle_name: "Fleet Vehicle 001",
-    timestamp: "2024-12-09T16:20:00Z",
-    fuel_level: 45.2,
-    location_latitude: -1.2900,
-    location_longitude: 36.8250,
-    speed: 55,
-    notes: "Refueling in progress"
-  },
-  {
-    id: "5",
-    vehicle_name: "Fleet Vehicle 004",
-    timestamp: "2024-12-09T12:30:00Z",
-    fuel_level: 15.8,
-    location_latitude: -1.2800,
-    location_longitude: 36.8300,
-    speed: 30,
-    notes: "Low fuel warning"
-  }
-];
+interface ApiResponse {
+  sensor_data: SensorData[];
+}
 
 const FuelReport = () => {
-  const [sensorData, setSensorData] = useState<SensorData[]>(mockSensorData);
-  const [filteredData, setFilteredData] = useState<SensorData[]>(mockSensorData);
+  const [sensorData, setSensorData] = useState<SensorData[]>([]);
+  const [filteredData, setFilteredData] = useState<SensorData[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
-  const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("Fleet Vehicle 001");
+  const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [chartPage, setChartPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
+  
   const itemsPerPage = 10;
-  const chartItemsPerPage = 12; // Show 12 data points per page
+  const chartItemsPerPage = 12;
+
+  // Fetch fuel data from API
+  const fetchFuelData = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      const token = localStorage.getItem('apiToken') || '6c19549d44d97c77712dc6236480522404d849d4';
+      
+      const response = await fetch('https://palmconnect.co/telematry/fuel-data/', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data: ApiResponse = await response.json();
+      
+      if (data.sensor_data && Array.isArray(data.sensor_data)) {
+        setSensorData(data.sensor_data);
+        setFilteredData(data.sensor_data);
+        
+        // Set default chart vehicle to first vehicle
+        if (data.sensor_data.length > 0 && !selectedChartVehicle) {
+          setSelectedChartVehicle(data.sensor_data[0].vehicle_name);
+        }
+      } else {
+        throw new Error('Invalid data format received from API');
+      }
+    } catch (error: any) {
+      console.error('Error fetching fuel data:', error);
+      setError(error.message || 'Failed to fetch fuel data');
+      toast({
+        title: 'Error',
+        description: 'Failed to fetch fuel data. Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchFuelData();
+  }, []);
 
   const handleFilter = () => {
     let filtered = sensorData;
@@ -124,10 +135,12 @@ const FuelReport = () => {
       "ID",
       "Vehicle",
       "Timestamp",
-      "Fuel Level (L)",
-      "Latitude",
-      "Longitude",
+      "Fuel Level",
+      "Location",
       "Speed (km/h)",
+      "Satellites",
+      "Ignition",
+      "Movement",
       "Notes"
     ];
 
@@ -138,9 +151,11 @@ const FuelReport = () => {
         `"${data.vehicle_name}"`,
         data.timestamp,
         data.fuel_level,
-        data.location_latitude,
-        data.location_longitude,
+        `"${data.location}"`,
         data.speed,
+        data.satellites,
+        data.ignition ? 'Yes' : 'No',
+        data.movement ? 'Yes' : 'No',
         `"${data.notes}"`
       ].join(","))
     ].join("\n");
@@ -156,82 +171,23 @@ const FuelReport = () => {
     document.body.removeChild(a);
   };
 
-  // Mock fuel chart data for different vehicles
-  const allFuelChartData = {
-    "Fleet Vehicle 001": [
-      { time: "00:00", level: 75, vehicle: "Fleet Vehicle 001" },
-      { time: "02:00", level: 72, vehicle: "Fleet Vehicle 001" },
-      { time: "04:00", level: 68, vehicle: "Fleet Vehicle 001" },
-      { time: "06:00", level: 65, vehicle: "Fleet Vehicle 001" },
-      { time: "08:00", level: 85, vehicle: "Fleet Vehicle 001" }, // Refueled
-      { time: "10:00", level: 82, vehicle: "Fleet Vehicle 001" },
-      { time: "12:00", level: 78, vehicle: "Fleet Vehicle 001" },
-      { time: "14:00", level: 74, vehicle: "Fleet Vehicle 001" },
-      { time: "16:00", level: 70, vehicle: "Fleet Vehicle 001" },
-      { time: "18:00", level: 66, vehicle: "Fleet Vehicle 001" },
-      { time: "20:00", level: 62, vehicle: "Fleet Vehicle 001" },
-      { time: "22:00", level: 58, vehicle: "Fleet Vehicle 001" },
-      { time: "24:00", level: 55, vehicle: "Fleet Vehicle 001" },
-      { time: "26:00", level: 52, vehicle: "Fleet Vehicle 001" },
-      { time: "28:00", level: 48, vehicle: "Fleet Vehicle 001" },
-      { time: "30:00", level: 45, vehicle: "Fleet Vehicle 001" },
-      { time: "32:00", level: 42, vehicle: "Fleet Vehicle 001" },
-      { time: "34:00", level: 38, vehicle: "Fleet Vehicle 001" },
-      { time: "36:00", level: 35, vehicle: "Fleet Vehicle 001" },
-      { time: "38:00", level: 32, vehicle: "Fleet Vehicle 001" },
-      { time: "40:00", level: 28, vehicle: "Fleet Vehicle 001" },
-      { time: "42:00", level: 25, vehicle: "Fleet Vehicle 001" },
-      { time: "44:00", level: 22, vehicle: "Fleet Vehicle 001" },
-      { time: "46:00", level: 18, vehicle: "Fleet Vehicle 001" },
-    ],
-    "Fleet Vehicle 002": [
-      { time: "00:00", level: 80, vehicle: "Fleet Vehicle 002" },
-      { time: "02:00", level: 78, vehicle: "Fleet Vehicle 002" },
-      { time: "04:00", level: 75, vehicle: "Fleet Vehicle 002" },
-      { time: "06:00", level: 72, vehicle: "Fleet Vehicle 002" },
-      { time: "08:00", level: 69, vehicle: "Fleet Vehicle 002" },
-      { time: "10:00", level: 66, vehicle: "Fleet Vehicle 002" },
-      { time: "12:00", level: 63, vehicle: "Fleet Vehicle 002" },
-      { time: "14:00", level: 60, vehicle: "Fleet Vehicle 002" },
-      { time: "16:00", level: 57, vehicle: "Fleet Vehicle 002" },
-      { time: "18:00", level: 54, vehicle: "Fleet Vehicle 002" },
-      { time: "20:00", level: 51, vehicle: "Fleet Vehicle 002" },
-      { time: "22:00", level: 48, vehicle: "Fleet Vehicle 002" },
-      { time: "24:00", level: 45, vehicle: "Fleet Vehicle 002" },
-      { time: "26:00", level: 42, vehicle: "Fleet Vehicle 002" },
-      { time: "28:00", level: 38, vehicle: "Fleet Vehicle 002" },
-      { time: "30:00", level: 35, vehicle: "Fleet Vehicle 002" },
-    ],
-    "Fleet Vehicle 003": [
-      { time: "00:00", level: 90, vehicle: "Fleet Vehicle 003" },
-      { time: "02:00", level: 88, vehicle: "Fleet Vehicle 003" },
-      { time: "04:00", level: 86, vehicle: "Fleet Vehicle 003" },
-      { time: "06:00", level: 84, vehicle: "Fleet Vehicle 003" },
-      { time: "08:00", level: 82, vehicle: "Fleet Vehicle 003" },
-      { time: "10:00", level: 80, vehicle: "Fleet Vehicle 003" },
-      { time: "12:00", level: 78, vehicle: "Fleet Vehicle 003" },
-      { time: "14:00", level: 76, vehicle: "Fleet Vehicle 003" },
-      { time: "16:00", level: 74, vehicle: "Fleet Vehicle 003" },
-      { time: "18:00", level: 72, vehicle: "Fleet Vehicle 003" },
-      { time: "20:00", level: 70, vehicle: "Fleet Vehicle 003" },
-      { time: "22:00", level: 68, vehicle: "Fleet Vehicle 003" },
-    ],
-    "Fleet Vehicle 004": [
-      { time: "00:00", level: 25, vehicle: "Fleet Vehicle 004" },
-      { time: "02:00", level: 23, vehicle: "Fleet Vehicle 004" },
-      { time: "04:00", level: 20, vehicle: "Fleet Vehicle 004" },
-      { time: "06:00", level: 18, vehicle: "Fleet Vehicle 004" },
-      { time: "08:00", level: 15, vehicle: "Fleet Vehicle 004" },
-      { time: "10:00", level: 12, vehicle: "Fleet Vehicle 004" },
-      { time: "12:00", level: 10, vehicle: "Fleet Vehicle 004" },
-      { time: "14:00", level: 8, vehicle: "Fleet Vehicle 004" },
-      { time: "16:00", level: 5, vehicle: "Fleet Vehicle 004" },
-      { time: "18:00", level: 3, vehicle: "Fleet Vehicle 004" },
-    ]
+  // Process chart data from API response
+  const getChartDataForVehicle = (vehicleName: string) => {
+    return sensorData
+      .filter(data => data.vehicle_name === vehicleName)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .map(data => ({
+        time: new Date(data.timestamp).toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit' 
+        }),
+        level: parseFloat(data.fuel_level.replace('L', '')),
+        vehicle: data.vehicle_name,
+        timestamp: data.timestamp
+      }));
   };
 
-  // Get the current vehicle's chart data
-  const currentVehicleData = allFuelChartData[selectedChartVehicle] || [];
+  const currentVehicleData = selectedChartVehicle ? getChartDataForVehicle(selectedChartVehicle) : [];
   
   // Calculate pagination for chart data
   const totalChartPages = Math.ceil(currentVehicleData.length / chartItemsPerPage);
@@ -252,7 +208,7 @@ const FuelReport = () => {
   const averageLevel = paginatedChartData.reduce((acc, data) => acc + data.level, 0) / paginatedChartData.length || 0;
   const maxLevel = Math.max(...paginatedChartData.map(data => data.level));
   const minLevel = Math.min(...paginatedChartData.map(data => data.level));
-  const isLowFuel = currentLevel <= 20;
+  const isLowFuel = currentLevel <= 15;
   const trend = currentLevel > previousLevel ? "up" : "down";
 
   // Table pagination
@@ -262,7 +218,46 @@ const FuelReport = () => {
   const currentData = filteredData.slice(startIndex, endIndex);
 
   // Get available vehicles for chart selector
-  const availableVehicles = Object.keys(allFuelChartData);
+  const availableVehicles = [...new Set(sensorData.map(data => data.vehicle_name))];
+
+  if (isLoading) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <main className="flex-1 p-6 flex items-center justify-center">
+            <div className="flex items-center gap-2">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              <span>Loading fuel data...</span>
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  if (error) {
+    return (
+      <SidebarProvider>
+        <div className="min-h-screen flex w-full bg-background">
+          <AppSidebar />
+          <main className="flex-1 p-6 flex items-center justify-center">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="text-center text-destructive">Error</CardTitle>
+              </CardHeader>
+              <CardContent className="text-center space-y-4">
+                <p>{error}</p>
+                <Button onClick={fetchFuelData}>
+                  Try Again
+                </Button>
+              </CardContent>
+            </Card>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -279,6 +274,9 @@ const FuelReport = () => {
                 Analyze fuel consumption and sensor data across your fleet
               </p>
             </div>
+            <Button onClick={fetchFuelData} variant="outline">
+              Refresh Data
+            </Button>
           </div>
 
           {/* Fuel Statistics Cards */}
@@ -291,7 +289,7 @@ const FuelReport = () => {
               <CardContent>
                 <div className="flex items-center gap-2">
                   <div className={`text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
-                    {currentLevel}L
+                    {currentLevel.toFixed(1)}L
                   </div>
                   {trend === "up" ? (
                     <TrendingUp className="h-4 w-4 text-green-500" />
@@ -322,7 +320,7 @@ const FuelReport = () => {
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{maxLevel}L</div>
+                <div className="text-2xl font-bold text-green-600">{maxLevel.toFixed(1)}L</div>
               </CardContent>
             </Card>
             <Card>
@@ -331,125 +329,127 @@ const FuelReport = () => {
                 <TrendingDown className="h-4 w-4 text-red-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{minLevel}L</div>
+                <div className="text-2xl font-bold text-red-600">{minLevel.toFixed(1)}L</div>
               </CardContent>
             </Card>
           </div>
 
           {/* Fuel Level Chart */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Fuel Level Over Time - {selectedChartVehicle}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="chart-vehicle">Select a Vehicle:</Label>
-                  <Select value={selectedChartVehicle} onValueChange={(value) => {
-                    setSelectedChartVehicle(value);
-                    setChartPage(1); // Reset to first page when changing vehicle
-                  }}>
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Select Vehicle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableVehicles.map(vehicle => (
-                        <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+          {selectedChartVehicle && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Fuel Level Over Time - {selectedChartVehicle}</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="chart-vehicle">Select a Vehicle:</Label>
+                    <Select value={selectedChartVehicle} onValueChange={(value) => {
+                      setSelectedChartVehicle(value);
+                      setChartPage(1);
+                    }}>
+                      <SelectTrigger className="w-48">
+                        <SelectValue placeholder="Select Vehicle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableVehicles.map(vehicle => (
+                          <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <ChartContainer config={chartConfig} className="h-[400px]">
-                <AreaChart data={paginatedChartData}>
-                  <defs>
-                    <linearGradient id="fillLevel" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8}/>
-                      <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis 
-                    dataKey="time" 
-                    className="text-xs"
-                    tick={{ fontSize: 12 }}
-                  />
-                  <YAxis 
-                    className="text-xs"
-                    tick={{ fontSize: 12 }}
-                    label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
-                  />
-                  <ChartTooltip
-                    content={<ChartTooltipContent />}
-                  />
-                  <ReferenceLine 
-                    y={15} 
-                    stroke="#ef4444" 
-                    strokeDasharray="5 5"
-                    label={{ value: "Low Fuel Alert (15L)", position: "top" }}
-                  />
-                  <ReferenceLine 
-                    y={5} 
-                    stroke="#dc2626" 
-                    strokeDasharray="3 3"
-                    label={{ value: "Critical (5L)", position: "bottom" }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="level"
-                    stroke="hsl(var(--chart-1))"
-                    fillOpacity={1}
-                    fill="url(#fillLevel)"
-                    strokeWidth={2}
-                  />
-                </AreaChart>
-              </ChartContainer>
-              
-              {/* Chart Pagination */}
-              {totalChartPages > 1 && (
-                <div className="mt-4">
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious 
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (chartPage > 1) setChartPage(chartPage - 1);
-                          }}
-                          className={chartPage === 1 ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                      {Array.from({ length: totalChartPages }, (_, i) => i + 1).map((page) => (
-                        <PaginationItem key={page}>
-                          <PaginationLink
+              </CardHeader>
+              <CardContent>
+                <ChartContainer config={chartConfig} className="h-[400px]">
+                  <AreaChart data={paginatedChartData}>
+                    <defs>
+                      <linearGradient id="fillLevel" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis 
+                      dataKey="time" 
+                      className="text-xs"
+                      tick={{ fontSize: 12 }}
+                    />
+                    <YAxis 
+                      className="text-xs"
+                      tick={{ fontSize: 12 }}
+                      label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
+                    />
+                    <ChartTooltip
+                      content={<ChartTooltipContent />}
+                    />
+                    <ReferenceLine 
+                      y={15} 
+                      stroke="#ef4444" 
+                      strokeDasharray="5 5"
+                      label={{ value: "Low Fuel Alert (15L)", position: "top" }}
+                    />
+                    <ReferenceLine 
+                      y={5} 
+                      stroke="#dc2626" 
+                      strokeDasharray="3 3"
+                      label={{ value: "Critical (5L)", position: "bottom" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="level"
+                      stroke="hsl(var(--chart-1))"
+                      fillOpacity={1}
+                      fill="url(#fillLevel)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ChartContainer>
+                
+                {/* Chart Pagination */}
+                {totalChartPages > 1 && (
+                  <div className="mt-4">
+                    <Pagination>
+                      <PaginationContent>
+                        <PaginationItem>
+                          <PaginationPrevious 
                             href="#"
                             onClick={(e) => {
                               e.preventDefault();
-                              setChartPage(page);
+                              if (chartPage > 1) setChartPage(chartPage - 1);
                             }}
-                            isActive={page === chartPage}
-                          >
-                            {page}
-                          </PaginationLink>
+                            className={chartPage === 1 ? "pointer-events-none opacity-50" : ""}
+                          />
                         </PaginationItem>
-                      ))}
-                      <PaginationItem>
-                        <PaginationNext 
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (chartPage < totalChartPages) setChartPage(chartPage + 1);
-                          }}
-                          className={chartPage === totalChartPages ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        {Array.from({ length: totalChartPages }, (_, i) => i + 1).map((page) => (
+                          <PaginationItem key={page}>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                setChartPage(page);
+                              }}
+                              isActive={page === chartPage}
+                            >
+                              {page}
+                            </PaginationLink>
+                          </PaginationItem>
+                        ))}
+                        <PaginationItem>
+                          <PaginationNext 
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              if (chartPage < totalChartPages) setChartPage(chartPage + 1);
+                            }}
+                            className={chartPage === totalChartPages ? "pointer-events-none opacity-50" : ""}
+                          />
+                        </PaginationItem>
+                      </PaginationContent>
+                    </Pagination>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
 
           {/* Filters */}
           <Card>
@@ -466,7 +466,7 @@ const FuelReport = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Vehicles</SelectItem>
-                      {[...new Set(sensorData.map(data => data.vehicle_name))].map(vehicle => (
+                      {availableVehicles.map(vehicle => (
                         <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
                       ))}
                     </SelectContent>
@@ -501,7 +501,7 @@ const FuelReport = () => {
           {/* Sensor Data Table */}
           <Card>
             <CardHeader>
-              <CardTitle>Sensor Data</CardTitle>
+              <CardTitle>Sensor Data ({filteredData.length} records)</CardTitle>
             </CardHeader>
             <CardContent>
               <ScrollArea className="h-[600px]">
@@ -513,6 +513,8 @@ const FuelReport = () => {
                       <TableHead>Fuel Level</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Speed</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Satellites</TableHead>
                       <TableHead>Notes</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -520,12 +522,29 @@ const FuelReport = () => {
                     {currentData.map((data) => (
                       <TableRow key={data.id} className="hover:bg-muted/50">
                         <TableCell className="font-medium">{data.vehicle_name}</TableCell>
-                        <TableCell className="font-mono text-xs">{new Date(data.timestamp).toLocaleString()}</TableCell>
-                        <TableCell>{data.fuel_level}L</TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {data.location_latitude.toFixed(4)}, {data.location_longitude.toFixed(4)}
+                        <TableCell className="font-mono text-xs">{data.timestamp_display}</TableCell>
+                        <TableCell className={parseFloat(data.fuel_level.replace('L', '')) <= 15 ? "text-red-600 font-semibold" : ""}>
+                          {data.fuel_level}
                         </TableCell>
+                        <TableCell className="font-mono text-xs">{data.location}</TableCell>
                         <TableCell>{data.speed} km/h</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                              {data.ignition ? "ON" : "OFF"}
+                            </Badge>
+                            {data.movement && (
+                              <Badge variant="outline" className="text-xs">
+                                MOVING
+                              </Badge>
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className={data.satellites < 10 ? "text-yellow-600" : "text-green-600"}>
+                            {data.satellites}
+                          </span>
+                        </TableCell>
                         <TableCell>{data.notes}</TableCell>
                       </TableRow>
                     ))}

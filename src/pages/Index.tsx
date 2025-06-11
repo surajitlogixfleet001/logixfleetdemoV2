@@ -3,81 +3,163 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
-import { Fuel, ShieldAlert, Car, AlertTriangle } from "lucide-react";
+import { Fuel, ShieldAlert, Car, AlertTriangle } from 'lucide-react';
+import axios from "axios";
+import api from "@/lib/api";
 
-const sampleData = [
-  {
-    "imei": "353691842162892",
-    "timestamp": "2025-06-10T12:10:00",
-    "latitude": -1.27969,
-    "longitude": 36.7942233,
-    "speed": 0,
-    "fuel_liters": 12.0,
-    "ignition": true,
-    "movement": true,
-    "satellites": 14,
-    "total_distance_km": 3058.015,
-    "engine_hours": 56.405,
-    "rpm": 920,
-    "external_voltage": 12.271
-  },
-  {
-    "imei": "353691842162892",
-    "timestamp": "2025-06-10T12:10:35",
-    "latitude": -1.27962,
-    "longitude": 36.7942533,
-    "speed": 9,
-    "fuel_liters": 12.0,
-    "ignition": true,
-    "movement": true,
-    "satellites": 14,
-    "total_distance_km": 3058.028,
-    "engine_hours": 56.405,
-    "rpm": 890,
-    "external_voltage": 14.178
-  },
-  {
-    "imei": "353691842162892",
-    "timestamp": "2025-06-10T12:22:06",
-    "latitude": -1.2796816,
-    "longitude": 36.79421,
-    "speed": 0,
-    "fuel_liters": 11.2,
-    "ignition": false,
-    "movement": false,
-    "satellites": 15,
-    "total_distance_km": 3058.622,
-    "engine_hours": 56.405,
-    "rpm": 940,
-    "external_voltage": 12.983
-  }
-];
+// Define types for API responses
+interface FuelData {
+  id: number;
+  vehicle: number;
+  vehicle_name: string;
+  timestamp: string;
+  timestamp_display: string;
+  fuel_level: string;
+  location: string;
+  speed: number;
+  notes: string;
+  latitude: string;
+  longitude: string;
+  altitude: null | number;
+  satellites: number;
+  ignition: boolean;
+  movement: boolean;
+}
 
-// Mock data for fuel theft metrics
-const fuelTheftData = {
-  totalVehicles: 4,
-  monthlyTheftCount: 7,
-  totalFuelStolen: 285.6, // in liters
-  highRiskVehicles: [
-    { name: "Fleet Vehicle 001", riskScore: 95, lastTheft: "2025-06-10" },
-    { name: "Fleet Vehicle 003", riskScore: 87, lastTheft: "2025-06-09" },
-    { name: "Fleet Vehicle 007", riskScore: 73, lastTheft: "2025-06-08" }
-  ]
-};
+interface FuelEvent {
+  id: number;
+  vehicle: number;
+  vehicle_name: string;
+  event_type: string;
+  event_display: string;
+  event_icon: string;
+  timestamp: string;
+  timestamp_display: string;
+  previous_level: string;
+  current_level: string;
+  change_amount: string;
+  fuel_change: {
+    text: string;
+    color: string;
+    details: string;
+  };
+  location_latitude: string;
+  location_longitude: string;
+  location: string;
+  severity: string;
+  notes: string;
+  created_at: string;
+}
+
+interface VehicleData {
+  id: number;
+  name: string;
+  imei: string;
+  imei_display: string;
+  type: string;
+  driver: string;
+  status: string;
+  license_plate: string;
+  fuel_capacity: string;
+  is_active: boolean;
+  driver_name: string;
+  driver_phone: string;
+  notes: string;
+}
+
+interface FleetResponse {
+  fleet_overview: VehicleData[];
+  total_vehicles: number;
+  active_vehicles: number;
+  company: {
+    id: string;
+    name: string;
+    country: string;
+  };
+}
 
 const Index = () => {
-  const [currentData, setCurrentData] = useState(sampleData[sampleData.length - 1]);
-  const [vehicleData, setVehicleData] = useState(sampleData);
+  const [fuelData, setFuelData] = useState<FuelData[]>([]);
+  const [fuelEvents, setFuelEvents] = useState<FuelEvent[]>([]);
+  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentData, setCurrentData] = useState<FuelData | null>(null);
+
+  // Calculate theft metrics based on real data
+  const calculateTheftMetrics = () => {
+    const theftEvents = fuelEvents.filter(event => 
+      event.event_type === 'theft' || event.event_type === 'rapid_drop'
+    );
+    
+    const totalFuelStolen = theftEvents.reduce((total, event) => {
+      const amount = parseFloat(event.change_amount);
+      return total + (isNaN(amount) ? 0 : Math.abs(amount));
+    }, 0);
+    
+    const highRiskVehicles = vehicles
+      .filter(vehicle => {
+        const vehicleThefts = theftEvents.filter(event => event.vehicle === vehicle.id);
+        return vehicleThefts.length > 0;
+      })
+      .map(vehicle => {
+        const vehicleThefts = theftEvents.filter(event => event.vehicle === vehicle.id);
+        const lastTheft = vehicleThefts.length > 0 ? 
+          vehicleThefts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp : '';
+        
+        return {
+          name: vehicle.name,
+          riskScore: Math.floor(Math.random() * 30) + 70, // Simulated risk score between 70-100
+          lastTheft: lastTheft
+        };
+      })
+      .sort((a, b) => b.riskScore - a.riskScore)
+      .slice(0, 3); // Top 3 high risk vehicles
+    
+    return {
+      totalVehicles: vehicles.length,
+      monthlyTheftCount: theftEvents.length,
+      totalFuelStolen: totalFuelStolen,
+      highRiskVehicles: highRiskVehicles
+    };
+  };
+
 
   useEffect(() => {
-    // Simulate real-time data updates
-    const interval = setInterval(() => {
-      const latestPoint = vehicleData[vehicleData.length - 1];
-      setCurrentData(latestPoint);
-    }, 5000);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        
+        // Fetch fuel data
+        const fuelResponse = await api.get('/fuel-data/');
+        setFuelData(fuelResponse.data.sensor_data);
+        
+        if (fuelResponse.data.sensor_data.length > 0) {
+          setCurrentData(fuelResponse.data.sensor_data[0]);
+        }
+        
+        // Fetch vehicles data
+        const vehiclesResponse = await api.get('/vehicles/');
+        setVehicles(vehiclesResponse.data.fleet_overview);
+        
+        // Fetch fuel events data
+        const eventsResponse = await api.get('/fuel-events/');
+        setFuelEvents(eventsResponse.data.fuel_events);
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching data:', err);
+        setError('Failed to fetch data. Please check your connection and try again.');
+        setLoading(false);
+      }
+    };
 
-    return () => clearInterval(interval);
-  }, [vehicleData]);
+    // Only fetch once when component mounts or page refreshes
+    fetchData();
+  }, []);
+
+  // Calculate theft metrics
+  const fuelTheftData = calculateTheftMetrics();
 
   return (
     <SidebarProvider>
@@ -92,7 +174,7 @@ const Index = () => {
                   <SidebarTrigger />
                   <div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                      Welcome John
+                      Welcome Test
                     </h1>
                     <p className="text-muted-foreground mt-2">
                       Real-time vehicle tracking and fuel monitoring system
@@ -101,91 +183,111 @@ const Index = () => {
                 </div>
               </div>
 
-              {/* Key Metrics Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
-                    <Car className="h-4 w-4 text-muted-foreground" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold">{fuelTheftData.totalVehicles}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Fleet size
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Fuel Theft This Month</CardTitle>
-                    <ShieldAlert className="h-4 w-4 text-destructive" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-destructive">{fuelTheftData.monthlyTheftCount}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Detected incidents
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">Total Fuel Stolen</CardTitle>
-                    <Fuel className="h-4 w-4 text-destructive" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-destructive">{fuelTheftData.totalFuelStolen}L</div>
-                    <p className="text-xs text-muted-foreground">
-                      This month
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card className="hover:shadow-lg transition-shadow">
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">High Risk Vehicles</CardTitle>
-                    <AlertTriangle className="h-4 w-4 text-orange-500" />
-                  </CardHeader>
-                  <CardContent>
-                    <div className="text-2xl font-bold text-orange-500">{fuelTheftData.highRiskVehicles.length}</div>
-                    <p className="text-xs text-muted-foreground">
-                      Require attention
-                    </p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* High Risk Vehicles Card */}
-              <Card className="mb-8">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <AlertTriangle className="h-5 w-5 text-orange-500" />
-                    Vehicles with High Risk of Fuel Theft
-                  </CardTitle>
-                  <CardDescription>
-                    Vehicles showing patterns of suspicious fuel activity
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    {fuelTheftData.highRiskVehicles.map((vehicle, index) => (
-                      <div key={index} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-                        <div>
-                          <h4 className="font-semibold">{vehicle.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            Last theft detected: {new Date(vehicle.lastTheft).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-lg font-bold text-destructive">{vehicle.riskScore}%</div>
-                          <p className="text-xs text-muted-foreground">Risk Score</p>
-                        </div>
-                      </div>
-                    ))}
+              {loading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-4 text-muted-foreground">Loading data...</p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              ) : error ? (
+                <Card className="border-destructive">
+                  <CardContent className="pt-6">
+                    <div className="text-center text-destructive">
+                      <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
+                      <p>{error}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : (
+                <>
+                  {/* Key Metrics Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                    <Card className="hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
+                        <Car className="h-4 w-4 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold">{fuelTheftData.totalVehicles}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Fleet size
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Fuel Theft This Month</CardTitle>
+                        <ShieldAlert className="h-4 w-4 text-destructive" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-destructive">{fuelTheftData.monthlyTheftCount}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Detected incidents
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Total Fuel Stolen</CardTitle>
+                        <Fuel className="h-4 w-4 text-destructive" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-destructive">{fuelTheftData.totalFuelStolen.toFixed(1)}L</div>
+                        <p className="text-xs text-muted-foreground">
+                          This month
+                        </p>
+                      </CardContent>
+                    </Card>
+
+                    <Card className="hover:shadow-lg transition-shadow">
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">High Risk Vehicles</CardTitle>
+                        <AlertTriangle className="h-4 w-4 text-orange-500" />
+                      </CardHeader>
+                      <CardContent>
+                        <div className="text-2xl font-bold text-orange-500">{fuelTheftData.highRiskVehicles.length}</div>
+                        <p className="text-xs text-muted-foreground">
+                          Require attention
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {/* High Risk Vehicles Card */}
+                  <Card className="mb-8">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5 text-orange-500" />
+                        Vehicles with High Risk of Fuel Theft
+                      </CardTitle>
+                      <CardDescription>
+                        Vehicles showing patterns of suspicious fuel activity
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {fuelTheftData.highRiskVehicles.map((vehicle, index) => (
+                          <div key={index} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                            <div>
+                              <h4 className="font-semibold">{vehicle.name}</h4>
+                              <p className="text-sm text-muted-foreground">
+                                Last theft detected: {new Date(vehicle.lastTheft).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-lg font-bold text-destructive">{vehicle.riskScore}%</div>
+                              <p className="text-xs text-muted-foreground">Risk Score</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
             </div>
           </div>
         </SidebarInset>

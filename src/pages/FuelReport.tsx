@@ -11,8 +11,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
-import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, ResponsiveContainer, Legend, Tooltip } from "recharts";
+import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -40,35 +40,33 @@ interface ApiResponse {
 
 type TimePeriod = 'day' | 'week' | 'month';
 
-const FuelReport = () => {
+const FuelReport: React.FC = () => {
   const [sensorData, setSensorData] = useState<SensorData[]>([]);
   const [filteredData, setFilteredData] = useState<SensorData[]>([]);
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all");
   const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("");
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>('day');
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedRecords, setSelectedRecords] = useState<number[]>([]);
-  const [selectAll, setSelectAll] = useState(false);
   const { toast } = useToast();
-  
+
   const itemsPerPage = 10;
+  const API_URL = 'https://palmconnect.co/telematry/fuel-data/';
+  const API_TOKEN = '6c19549d44d97c77712dc6236480522404d849d4';
 
   // Fetch fuel data from API
   const fetchFuelData = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
-      const token = '6c19549d44d97c77712dc6236480522404d849d4';
-      
-      const response = await fetch('https://palmconnect.co/telematry/fuel-data/', {
+      const response = await fetch(API_URL, {
         method: 'GET',
         headers: {
-          'Authorization': `Token ${token}`,
+          'Authorization': `Token ${API_TOKEN}`,
           'Content-Type': 'application/json',
         },
       });
@@ -78,21 +76,19 @@ const FuelReport = () => {
       }
 
       const data: ApiResponse = await response.json();
-      
+
       if (data.sensor_data && Array.isArray(data.sensor_data)) {
         setSensorData(data.sensor_data);
         setFilteredData(data.sensor_data);
-        
-        // Set default chart vehicle to first vehicle
-        if (data.sensor_data.length > 0 && !selectedChartVehicle) {
-          setSelectedChartVehicle(data.sensor_data[0].vehicle_name);
+        if (data.sensor_data.length > 0) {
+          setSelectedChartVehicle(prev => prev || data.sensor_data[0].vehicle_name);
         }
       } else {
         throw new Error('Invalid data format received from API');
       }
-    } catch (error: any) {
-      console.error('Error fetching fuel data:', error);
-      setError(error.message || 'Failed to fetch fuel data');
+    } catch (err: any) {
+      console.error('Error fetching fuel data:', err);
+      setError(err.message || 'Failed to fetch fuel data');
       toast({
         title: 'Error',
         description: 'Failed to fetch fuel data. Please try again.',
@@ -107,25 +103,23 @@ const FuelReport = () => {
     fetchFuelData();
   }, []);
 
+  // Apply filters
   const handleFilter = () => {
     let filtered = sensorData;
-
     if (selectedVehicle !== "all") {
-      filtered = filtered.filter(data => data.vehicle_name === selectedVehicle);
+      filtered = filtered.filter(d => d.vehicle_name === selectedVehicle);
     }
-
     if (startDate) {
-      filtered = filtered.filter(data => new Date(data.timestamp) >= new Date(startDate));
+      const start = new Date(startDate);
+      filtered = filtered.filter(d => new Date(d.timestamp) >= start);
     }
-
     if (endDate) {
-      filtered = filtered.filter(data => new Date(data.timestamp) <= new Date(endDate));
+      const end = new Date(endDate);
+      filtered = filtered.filter(d => new Date(d.timestamp) <= end);
     }
-
     setFilteredData(filtered);
     setCurrentPage(1);
     setSelectedRecords([]);
-    setSelectAll(false);
   };
 
   const clearFilters = () => {
@@ -135,167 +129,119 @@ const FuelReport = () => {
     setFilteredData(sensorData);
     setCurrentPage(1);
     setSelectedRecords([]);
-    setSelectAll(false);
   };
 
-  // Handle individual record selection
+  // Record selection
   const handleRecordSelection = (recordId: number, checked: boolean) => {
-    if (checked) {
-      setSelectedRecords(prev => [...prev, recordId]);
-    } else {
-      setSelectedRecords(prev => prev.filter(id => id !== recordId));
-      setSelectAll(false);
-    }
-  };
-
-  // Handle select all functionality
-  const handleSelectAll = (checked: boolean) => {
-    setSelectAll(checked);
-    if (checked) {
-      setSelectedRecords(filteredData.map(data => data.id));
-    } else {
-      setSelectedRecords([]);
-    }
-  };
-
-  // Download CSV with selected records or all records
-  const downloadCSV = (downloadAll: boolean = false) => {
-    const dataToDownload = downloadAll ? filteredData : filteredData.filter(data => selectedRecords.includes(data.id));
-    
-    if (!downloadAll && dataToDownload.length === 0) {
-      toast({
-        title: 'No records selected',
-        description: 'Please select records to download or use "Download All" button.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    const headers = [
-      "ID",
-      "Vehicle",
-      "Timestamp",
-      "Fuel Level",
-      "Location",
-      "Speed (km/h)",
-      "Satellites",
-      "Ignition",
-      "Movement",
-      "Notes"
-    ];
-
-    const csvContent = [
-      headers.join(","),
-      ...dataToDownload.map(data => [
-        data.id,
-        `"${data.vehicle_name}"`,
-        data.timestamp,
-        data.fuel_level,
-        `"${data.location}"`,
-        data.speed,
-        data.satellites,
-        data.ignition ? 'Yes' : 'No',
-        data.movement ? 'Yes' : 'No',
-        `"${data.notes}"`
-      ].join(","))
-    ].join("\n");
-
-    const blob = new Blob([csvContent], { type: "text/csv" });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const fileName = downloadAll ? 
-      `fuel-report-all-${new Date().toISOString().split('T')[0]}.csv` :
-      `fuel-report-selected-${new Date().toISOString().split('T')[0]}.csv`;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    window.URL.revokeObjectURL(url);
-    document.body.removeChild(a);
-
-    toast({
-      title: 'Download Complete',
-      description: `Downloaded ${dataToDownload.length} records successfully.`,
+    setSelectedRecords(prev => {
+      if (checked) {
+        return [...prev, recordId];
+      } else {
+        return prev.filter(id => id !== recordId);
+      }
     });
   };
 
-  // Get chart data based on time period
-  const getChartDataForVehicle = (vehicleName: string, timePeriod: TimePeriod) => {
+  // Select all current page records
+  const toggleSelectAllPage = (checked: boolean) => {
+    if (checked) {
+      const ids = currentData.map(d => d.id);
+      setSelectedRecords(prev => Array.from(new Set([...prev, ...ids])));
+    } else {
+      const ids = currentData.map(d => d.id);
+      setSelectedRecords(prev => prev.filter(id => !ids.includes(id)));
+    }
+  };
+
+  // Download CSV
+  const downloadCSV = (downloadAll = false) => {
+    const dataToDownload = downloadAll ? filteredData : filteredData.filter(d => selectedRecords.includes(d.id));
+    if (!downloadAll && dataToDownload.length === 0) {
+      toast({ title: 'No records selected', description: 'Please select records or use Download All.', variant: 'destructive' });
+      return;
+    }
+    const headers = ["ID","Vehicle","Timestamp","Fuel Level","Location","Speed (km/h)","Satellites","Ignition","Movement","Notes"];
+    const csvRows = [headers.join(',')];
+    dataToDownload.forEach(d => {
+      const row = [
+        d.id,
+        `"${d.vehicle_name}"`,
+        d.timestamp,
+        d.fuel_level,
+        `"${d.location}"`,
+        d.speed,
+        d.satellites,
+        d.ignition ? 'Yes' : 'No',
+        d.movement ? 'Yes' : 'No',
+        `"${d.notes || ''}"`
+      ].join(',');
+      csvRows.push(row);
+    });
+    const blob = new Blob([csvRows.join("\n")], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const dateStr = new Date().toISOString().split('T')[0];
+    a.download = downloadAll ? `fuel-report-all-${dateStr}.csv` : `fuel-report-selected-${dateStr}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast({ title: 'Download Complete', description: `Downloaded ${dataToDownload.length} records.` });
+  };
+
+  // Chart data with moving average
+  const getChartDataForVehicle = (vehicleName: string, period: TimePeriod) => {
     const now = new Date();
     let startTime: Date;
-
-    switch (timePeriod) {
-      case 'day':
-        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Last 24 hours
-        break;
-      case 'week':
-        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); // Last 7 days
-        break;
-      case 'month':
-        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // Last 30 days
-        break;
-      default:
-        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    switch (period) {
+      case 'day': startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); break;
+      case 'week': startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000); break;
+      case 'month': startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+      default: startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     }
-
-    return sensorData
-      .filter(data => 
-        data.vehicle_name === vehicleName && 
-        new Date(data.timestamp) >= startTime
-      )
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .map(data => ({
-        time: timePeriod === 'day' 
-          ? new Date(data.timestamp).toLocaleTimeString('en-US', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            })
-          : new Date(data.timestamp).toLocaleDateString('en-US', { 
-              month: 'short', 
-              day: 'numeric',
-              ...(timePeriod === 'month' ? {} : { hour: '2-digit', minute: '2-digit' })
-            }),
-        level: parseFloat(data.fuel_level.replace('L', '')),
-        vehicle: data.vehicle_name,
-        timestamp: data.timestamp
+    const dataPoints = sensorData
+      .filter(d => d.vehicle_name === vehicleName && new Date(d.timestamp) >= startTime)
+      .sort((a,b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .map(d => ({
+        time: period === 'day'
+          ? new Date(d.timestamp).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+          : new Date(d.timestamp).toLocaleDateString('en-US', period === 'month' ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
+        level: parseFloat(d.fuel_level.replace(/L/i, '')) || 0,
       }));
+    // Compute moving average (window size 3)
+    const windowSize = 3;
+    const withAvg = dataPoints.map((point, idx, arr) => {
+      const start = Math.max(0, idx - (windowSize - 1));
+      const windowArr = arr.slice(start, idx + 1).map(p => p.level);
+      const avgLevel = windowArr.reduce((sum, v) => sum + v, 0) / windowArr.length;
+      return { ...point, avgLevel };
+    });
+    return withAvg;
   };
 
   const currentVehicleData = selectedChartVehicle ? getChartDataForVehicle(selectedChartVehicle, chartTimePeriod) : [];
 
-  const chartConfig = {
-    level: {
-      label: "Fuel Level",
-      color: "hsl(var(--chart-1))",
-    },
-  };
-
-  // Calculate statistics for the selected vehicle
-  const currentLevel = currentVehicleData[currentVehicleData.length - 1]?.level || 0;
-  const previousLevel = currentVehicleData[currentVehicleData.length - 2]?.level || 0;
-  const averageLevel = currentVehicleData.reduce((acc, data) => acc + data.level, 0) / currentVehicleData.length || 0;
-  const maxLevel = Math.max(...currentVehicleData.map(data => data.level));
-  const minLevel = Math.min(...currentVehicleData.map(data => data.level));
+  // Statistics
+  const lastIndex = currentVehicleData.length - 1;
+  const currentLevel = lastIndex >= 0 ? currentVehicleData[lastIndex].level : 0;
+  const prevLevel = lastIndex > 0 ? currentVehicleData[lastIndex - 1].level : currentLevel;
+  const averageLevel = currentVehicleData.length > 0 ? currentVehicleData.reduce((sum, d) => sum + d.level, 0) / currentVehicleData.length : 0;
+  const maxLevel = currentVehicleData.length > 0 ? Math.max(...currentVehicleData.map(d => d.level)) : 0;
+  const minLevel = currentVehicleData.length > 0 ? Math.min(...currentVehicleData.map(d => d.level)) : 0;
   const isLowFuel = currentLevel <= 15;
-  const trend = currentLevel > previousLevel ? "up" : "down";
+  const trend = currentLevel > prevLevel ? 'up' : 'down';
 
-  // Table pagination
-  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  // Pagination
+  const totalCount = filteredData.length;
+  const totalPages = Math.ceil(totalCount / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const endIndex = startIndex + itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, totalCount);
   const currentData = filteredData.slice(startIndex, endIndex);
 
-  // Get available vehicles for chart selector
-  const availableVehicles = [...new Set(sensorData.map(data => data.vehicle_name))];
+  const availableVehicles = Array.from(new Set(sensorData.map(d => d.vehicle_name)));
 
-  // Check if all current page records are selected
-  const currentPageRecordIds = currentData.map(data => data.id);
-  const allCurrentPageSelected = currentPageRecordIds.length > 0 && 
-    currentPageRecordIds.every(id => selectedRecords.includes(id));
-
-  // Calculate display count for table header
-  const displayCount = Math.min(50, filteredData.length);
-  const totalCount = filteredData.length;
+  const allCurrentPageSelected = currentData.length > 0 && currentData.every(d => selectedRecords.includes(d.id));
 
   if (isLoading) {
     return (
@@ -325,9 +271,7 @@ const FuelReport = () => {
               </CardHeader>
               <CardContent className="text-center space-y-4">
                 <p>{error}</p>
-                <Button onClick={fetchFuelData}>
-                  Try Again
-                </Button>
+                <Button onClick={fetchFuelData}>Try Again</Button>
               </CardContent>
             </Card>
           </main>
@@ -341,38 +285,29 @@ const FuelReport = () => {
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
         <main className="flex-1 p-6 space-y-6">
+          {/* Header */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                 <Fuel className="h-8 w-8 text-primary" />
                 Fuel Monitoring Report
               </h1>
-              <p className="text-muted-foreground">
-                Analyze fuel consumption and sensor data across your fleet
-              </p>
+              <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
             </div>
-            <Button onClick={fetchFuelData} variant="outline">
-              Refresh Data
-            </Button>
+            <Button onClick={fetchFuelData} variant="outline">Refresh Data</Button>
           </div>
 
-          {/* Fuel Statistics Cards */}
+          {/* Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Current Level</CardTitle>
                 <Gauge className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
-                  <div className={`text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
-                    {currentLevel.toFixed(1)}L
-                  </div>
-                  {trend === "up" ? (
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
-                  )}
+                  <div className={`text-2xl font-bold ${isLowFuel ? 'text-destructive' : 'text-foreground'}`}>{currentLevel.toFixed(1)}L</div>
+                  {trend === 'up' ? <TrendingUp className="h-4 w-4 text-green-500" /> : <TrendingDown className="h-4 w-4 text-red-500" />}
                 </div>
                 {isLowFuel && (
                   <div className="flex items-center gap-1 mt-1">
@@ -383,7 +318,7 @@ const FuelReport = () => {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Average Level</CardTitle>
                 <Fuel className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
@@ -392,7 +327,7 @@ const FuelReport = () => {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Max Level</CardTitle>
                 <TrendingUp className="h-4 w-4 text-green-500" />
               </CardHeader>
@@ -401,7 +336,7 @@ const FuelReport = () => {
               </CardContent>
             </Card>
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Min Level</CardTitle>
                 <TrendingDown className="h-4 w-4 text-red-500" />
               </CardHeader>
@@ -411,22 +346,21 @@ const FuelReport = () => {
             </Card>
           </div>
 
-          {/* Fuel Level Chart */}
+          {/* Chart with bold dark red line */}
           {selectedChartVehicle && (
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle>
-                    Fuel Level Over Time - {selectedChartVehicle} 
+                    Fuel Level Over Time - {selectedChartVehicle}
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      (Last {chartTimePeriod === 'day' ? '24 hours' : chartTimePeriod === 'week' ? 'week' : 'month'})
+                      (Last {chartTimePeriod === 'day' ? '24 hours' : chartTimePeriod === 'week' ? '7 days' : '30 days'})
                     </span>
                   </CardTitle>
                   <div className="flex items-center gap-4">
-                    {/* Time Period Selector */}
                     <div className="flex items-center gap-2">
                       <Label htmlFor="time-period">Time Period:</Label>
-                      <Select value={chartTimePeriod} onValueChange={(value: TimePeriod) => setChartTimePeriod(value)}>
+                      <Select value={chartTimePeriod} onValueChange={(v: TimePeriod) => setChartTimePeriod(v)}>
                         <SelectTrigger className="w-32">
                           <SelectValue />
                         </SelectTrigger>
@@ -437,8 +371,6 @@ const FuelReport = () => {
                         </SelectContent>
                       </Select>
                     </div>
-                    
-                    {/* Vehicle Selector */}
                     <div className="flex items-center gap-2">
                       <Label htmlFor="chart-vehicle">Vehicle:</Label>
                       <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
@@ -446,9 +378,7 @@ const FuelReport = () => {
                           <SelectValue placeholder="Select Vehicle" />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableVehicles.map(vehicle => (
-                            <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
-                          ))}
+                          {availableVehicles.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </div>
@@ -456,43 +386,38 @@ const FuelReport = () => {
                 </div>
               </CardHeader>
               <CardContent>
-                <ChartContainer config={chartConfig} className="h-[400px]">
-                  <LineChart data={currentVehicleData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="time" 
-                      className="text-xs"
-                      tick={{ fontSize: 12 }}
-                    />
-                    <YAxis 
-                      className="text-xs"
-                      tick={{ fontSize: 12 }}
-                      label={{ value: 'Fuel Level (L)', angle: -90, position: 'insideLeft' }}
-                    />
-                    <ChartTooltip
-                      content={<ChartTooltipContent />}
-                    />
-                    <ReferenceLine 
-                      y={15} 
-                      stroke="#ef4444" 
-                      strokeDasharray="5 5"
-                      label={{ value: "Low Fuel Alert (15L)", position: "top" }}
-                    />
-                    <ReferenceLine 
-                      y={5} 
-                      stroke="#dc2626" 
-                      strokeDasharray="3 3"
-                      label={{ value: "Critical (5L)", position: "bottom" }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="level"
-                      stroke="hsl(var(--chart-1))"
-                      strokeWidth={3}
-                      dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
-                      activeDot={{ r: 6, stroke: "hsl(var(--chart-1))", strokeWidth: 2 }}
-                    />
-                  </LineChart>
+                <ChartContainer className="h-[400px]" config={{ level: { label: 'Fuel Level', color: 'hsl(var(--chart-1))' } }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={currentVehicleData} margin={{ top: 20, right: 30, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                      <XAxis dataKey="time" tick={{ fontSize: 12 }} />
+                      <YAxis tick={{ fontSize: 12 }} label={{ value: 'Fuel (L)', angle: -90, position: 'insideLeft' }} />
+                      <Tooltip content={<ChartTooltipContent />} />
+                      <Legend verticalAlign="top" height={36} />
+                      <ReferenceLine y={15} stroke="#8b0000" strokeDasharray="5 5" label={{ value: 'Low Fuel (15L)', position: 'top', fill: '#8b0000', fontWeight: 'bold' }} />
+                      <ReferenceLine y={5} stroke="#8b0000" strokeDasharray="3 3" label={{ value: 'Critical (5L)', position: 'bottom', fill: '#8b0000', fontWeight: 'bold' }} />
+                      {/* Raw Fuel Level - dark red bold */}
+                      <Line
+                        type="monotone"
+                        dataKey="level"
+                        name="Fuel Level"
+                        stroke="#8b0000"
+                        strokeWidth={4}
+                        dot={false}
+                        activeDot={{ r: 6, stroke: '#8b0000', strokeWidth: 3 }}
+                      />
+                      {/* Moving Average - lighter red dashed */}
+                      <Line
+                        type="monotone"
+                        dataKey="avgLevel"
+                        name="Moving Avg (3)"
+                        stroke="#b22222"
+                        strokeWidth={3}
+                        dot={false}
+                        strokeDasharray="6 4"
+                      />
+                    </LineChart>
+                  </ResponsiveContainer>
                 </ChartContainer>
               </CardContent>
             </Card>
@@ -513,29 +438,17 @@ const FuelReport = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Vehicles</SelectItem>
-                      {availableVehicles.map(vehicle => (
-                        <SelectItem key={vehicle} value={vehicle}>{vehicle}</SelectItem>
-                      ))}
+                      {availableVehicles.map(v => <SelectItem key={v} value={v}>{v}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label htmlFor="start-date">Start Date</Label>
-                  <Input
-                    id="start-date"
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
+                  <Input id="start-date" type="datetime-local" value={startDate} onChange={e => setStartDate(e.target.value)} />
                 </div>
                 <div>
                   <Label htmlFor="end-date">End Date</Label>
-                  <Input
-                    id="end-date"
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+                  <Input id="end-date" type="datetime-local" value={endDate} onChange={e => setEndDate(e.target.value)} />
                 </div>
                 <div className="flex gap-2 items-end">
                   <Button onClick={handleFilter}>Apply Filters</Button>
@@ -545,17 +458,13 @@ const FuelReport = () => {
             </CardContent>
           </Card>
 
-          {/* Sensor Data Table */}
+          {/* Data Table */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>
-                  Fuel data (Showing {displayCount} of {totalCount} Records)
-                </CardTitle>
+                <CardTitle>Fuel data (Showing {startIndex + 1}-{endIndex} of {totalCount} Records)</CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">
-                    {selectedRecords.length} selected
-                  </span>
+                  <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
                 </div>
               </div>
             </CardHeader>
@@ -565,11 +474,7 @@ const FuelReport = () => {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-12">
-                        <Checkbox
-                          checked={selectAll}
-                          onCheckedChange={handleSelectAll}
-                          aria-label="Select all records"
-                        />
+                        <Checkbox checked={allCurrentPageSelected} onCheckedChange={toggleSelectAllPage} aria-label="Select all on page" />
                       </TableHead>
                       <TableHead>Vehicle</TableHead>
                       <TableHead>Timestamp</TableHead>
@@ -581,18 +486,18 @@ const FuelReport = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {currentData.map((data) => (
+                    {currentData.map(data => (
                       <TableRow key={data.id} className="hover:bg-muted/50">
                         <TableCell>
                           <Checkbox
                             checked={selectedRecords.includes(data.id)}
-                            onCheckedChange={(checked) => handleRecordSelection(data.id, checked as boolean)}
+                            onCheckedChange={checked => handleRecordSelection(data.id, checked as boolean)}
                             aria-label={`Select record ${data.id}`}
                           />
                         </TableCell>
                         <TableCell className="font-medium">{data.vehicle_name}</TableCell>
                         <TableCell className="font-mono text-xs">{data.timestamp_display}</TableCell>
-                        <TableCell className={parseFloat(data.fuel_level.replace('L', '')) <= 15 ? "text-red-600 font-semibold" : ""}>
+                        <TableCell className={parseFloat(data.fuel_level.replace(/L/i, '')) <= 15 ? "text-red-600 font-semibold" : ""}>
                           {data.fuel_level}
                         </TableCell>
                         <TableCell className="font-mono text-xs">{data.location}</TableCell>
@@ -602,11 +507,7 @@ const FuelReport = () => {
                             <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
                               {data.ignition ? "ON" : "OFF"}
                             </Badge>
-                            {data.movement && (
-                              <Badge variant="outline" className="text-xs">
-                                MOVING
-                              </Badge>
-                            )}
+                            {data.movement && <Badge variant="outline" className="text-xs">MOVING</Badge>}
                           </div>
                         </TableCell>
                         <TableCell>{data.notes}</TableCell>
@@ -616,29 +517,23 @@ const FuelReport = () => {
                 </Table>
               </ScrollArea>
 
-              {/* Table Pagination */}
+              {/* Pagination */}
               {totalPages > 1 && (
                 <div className="mt-4">
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
-                        <PaginationPrevious 
+                        <PaginationPrevious
                           href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (currentPage > 1) setCurrentPage(currentPage - 1);
-                          }}
+                          onClick={e => { e.preventDefault(); if (currentPage > 1) setCurrentPage(currentPage - 1); }}
                           className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                         />
                       </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
                         <PaginationItem key={page}>
                           <PaginationLink
                             href="#"
-                            onClick={(e) => {
-                              e.preventDefault();
-                              setCurrentPage(page);
-                            }}
+                            onClick={e => { e.preventDefault(); setCurrentPage(page); }}
                             isActive={page === currentPage}
                           >
                             {page}
@@ -646,12 +541,9 @@ const FuelReport = () => {
                         </PaginationItem>
                       ))}
                       <PaginationItem>
-                        <PaginationNext 
+                        <PaginationNext
                           href="#"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            if (currentPage < totalPages) setCurrentPage(currentPage + 1);
-                          }}
+                          onClick={e => { e.preventDefault(); if (currentPage < totalPages) setCurrentPage(currentPage + 1); }}
                           className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
                         />
                       </PaginationItem>
@@ -662,18 +554,11 @@ const FuelReport = () => {
 
               {/* Download Buttons */}
               <div className="mt-4 flex justify-end gap-2">
-                <Button 
-                  onClick={() => downloadCSV(false)} 
-                  className="flex items-center gap-2"
-                  disabled={selectedRecords.length === 0}
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4" />
-                  Download Selected ({selectedRecords.length})
+                <Button onClick={() => downloadCSV(false)} className="flex items-center gap-2" disabled={selectedRecords.length === 0} variant="outline">
+                  <Download className="h-4 w-4" /> Download Selected ({selectedRecords.length})
                 </Button>
                 <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2">
-                  <Download className="h-4 w-4" />
-                  Download All Records
+                  <Download className="h-4 w-4" /> Download All Records
                 </Button>
               </div>
             </CardContent>

@@ -58,7 +58,7 @@ interface ApiResponse {
   sensor_data: SensorData[]
 }
 
-type TimePeriod = "day" | "week" | "month" | "year"
+type TimePeriod = "day" | "week"
 
 interface ChartDataPoint {
   time: string
@@ -66,6 +66,7 @@ interface ChartDataPoint {
   avgLevel: number
   fullTimestamp: Date
   displayTime: string
+  dataCount: number
 }
 
 const FuelReport: React.FC = () => {
@@ -207,7 +208,7 @@ const FuelReport: React.FC = () => {
     toast({ title: "Download Complete", description: `Downloaded ${dataToDownload.length} records.` })
   }
 
-  // Enhanced chart data processing with better time formatting
+  // Enhanced chart data processing with proper aggregation
   const getChartDataForVehicle = (vehicleName: string, period: TimePeriod): ChartDataPoint[] => {
     const now = new Date()
     let startTime: Date
@@ -219,94 +220,77 @@ const FuelReport: React.FC = () => {
       case "week":
         startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
         break
-      case "month":
-        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        break
-      case "year":
-        startTime = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-        break
       default:
         startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     }
 
-    const dataPoints = sensorData
+    const filteredData = sensorData
       .filter((d) => d.vehicle_name === vehicleName && new Date(d.timestamp) >= startTime)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .map((d) => {
-        const timestamp = new Date(d.timestamp)
-        let displayTime: string
-        let time: string
 
-        switch (period) {
-          case "day":
-            // Show hours: 00:00, 01:00, 02:00, etc.
-            displayTime = timestamp.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-            time = displayTime
-            break
+    if (period === "day") {
+      // Create 6 time slots for 24 hours (4-hour intervals)
+      const timeSlots = [
+        { start: 0, end: 4, label: "00:00-04:00" },
+        { start: 4, end: 8, label: "04:00-08:00" },
+        { start: 8, end: 12, label: "08:00-12:00" },
+        { start: 12, end: 16, label: "12:00-16:00" },
+        { start: 16, end: 20, label: "16:00-20:00" },
+        { start: 20, end: 24, label: "20:00-24:00" },
+      ]
 
-          case "week":
-            // Show day names: Mon, Tue, Wed, etc.
-            const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-            displayTime = `${dayNames[timestamp.getDay()]} ${timestamp.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })}`
-            time = dayNames[timestamp.getDay()]
-            break
+      return timeSlots.map((slot) => {
+        const slotData = filteredData.filter((d) => {
+          const hour = new Date(d.timestamp).getHours()
+          return hour >= slot.start && hour < slot.end
+        })
 
-          case "month":
-            // Show dates: Jan 1, Jan 2, etc.
-            displayTime = timestamp.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-            time = timestamp.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-            })
-            break
-
-          case "year":
-            // Show months: Jan 2023, Feb 2023, etc.
-            displayTime = timestamp.toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-              day: "numeric",
-            })
-            time = timestamp.toLocaleDateString("en-US", {
-              month: "short",
-              year: "numeric",
-            })
-            break
-
-          default:
-            displayTime = timestamp.toLocaleString()
-            time = displayTime
-        }
+        const levels = slotData.map((d) => Number.parseFloat(d.fuel_level.replace(/L/i, "")) || 0)
+        const avgLevel = levels.length > 0 ? levels.reduce((sum, level) => sum + level, 0) / levels.length : 0
 
         return {
-          time,
-          displayTime,
-          level: Number.parseFloat(d.fuel_level.replace(/L/i, "")) || 0,
-          fullTimestamp: timestamp,
-          avgLevel: 0, // Will be calculated below
+          time: slot.label,
+          displayTime: slot.label,
+          level: avgLevel,
+          avgLevel: avgLevel,
+          fullTimestamp: new Date(),
+          dataCount: slotData.length,
         }
       })
+    } else {
+      // Week view - show all 7 days
+      const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+      const weekData: ChartDataPoint[] = []
 
-    // Calculate moving average
-    const windowSize = 3
-    return dataPoints.map((point, idx, arr) => {
-      const slice = arr.slice(Math.max(0, idx - (windowSize - 1)), idx + 1).map((p) => p.level)
-      const avgLevel = slice.reduce((sum, v) => sum + v, 0) / slice.length
-      return { ...point, avgLevel }
-    })
+      // Create data for each day of the week
+      for (let i = 6; i >= 0; i--) {
+        const dayDate = new Date(now.getTime() - i * 24 * 60 * 60 * 1000)
+        const dayStart = new Date(dayDate.getFullYear(), dayDate.getMonth(), dayDate.getDate())
+        const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000)
+
+        const dayData = filteredData.filter((d) => {
+          const timestamp = new Date(d.timestamp)
+          return timestamp >= dayStart && timestamp < dayEnd
+        })
+
+        const levels = dayData.map((d) => Number.parseFloat(d.fuel_level.replace(/L/i, "")) || 0)
+        const avgLevel = levels.length > 0 ? levels.reduce((sum, level) => sum + level, 0) / levels.length : 0
+
+        weekData.push({
+          time: dayNames[dayDate.getDay()],
+          displayTime: `${dayNames[dayDate.getDay()]} ${dayDate.toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}`,
+          level: avgLevel,
+          avgLevel: avgLevel,
+          fullTimestamp: dayDate,
+          dataCount: dayData.length,
+        })
+      }
+
+      return weekData
+    }
   }
 
   // Custom tooltip for better time display
@@ -317,37 +301,13 @@ const FuelReport: React.FC = () => {
         <div className="bg-background border rounded-lg shadow-lg p-3">
           <p className="font-medium">{data.displayTime}</p>
           <p className="text-sm">
-            <span className="text-blue-600 font-medium">Fuel Level: {payload[0].value.toFixed(1)}L</span>
+            <span className="text-blue-600 font-medium">Avg Fuel Level: {payload[0].value.toFixed(1)}L</span>
           </p>
-          {payload[1] && (
-            <p className="text-sm">
-              <span className="text-orange-600 font-medium">Moving Avg: {payload[1].value.toFixed(1)}L</span>
-            </p>
-          )}
+          <p className="text-xs text-muted-foreground">Data points: {data.dataCount}</p>
         </div>
       )
     }
     return null
-  }
-
-  // Format X-axis labels based on period
-  const formatXAxisLabel = (tickItem: string, index: number, period: TimePeriod) => {
-    switch (period) {
-      case "day":
-        // Show every 4 hours: 00:00, 04:00, 08:00, etc.
-        return index % 4 === 0 ? tickItem : ""
-      case "week":
-        // Show day names
-        return tickItem.split(" ")[0] // Just the day name part
-      case "month":
-        // Show every few days
-        return index % 3 === 0 ? tickItem : ""
-      case "year":
-        // Show every few months
-        return index % 2 === 0 ? tickItem : ""
-      default:
-        return tickItem
-    }
   }
 
   const currentVehicleData = selectedChartVehicle ? getChartDataForVehicle(selectedChartVehicle, chartTimePeriod) : []
@@ -491,15 +451,7 @@ const FuelReport: React.FC = () => {
                   <CardTitle>
                     Fuel Level Over Time - {selectedChartVehicle}
                     <span className="text-sm font-normal text-muted-foreground ml-2">
-                      (Last{" "}
-                      {chartTimePeriod === "day"
-                        ? "24 hours"
-                        : chartTimePeriod === "week"
-                          ? "7 days"
-                          : chartTimePeriod === "month"
-                            ? "30 days"
-                            : "1 year"}
-                      )
+                      ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
                     </span>
                   </CardTitle>
                   <div className="flex items-center gap-4">
@@ -512,8 +464,6 @@ const FuelReport: React.FC = () => {
                         <SelectContent>
                           <SelectItem value="day">24 Hours</SelectItem>
                           <SelectItem value="week">7 Days</SelectItem>
-                          <SelectItem value="month">30 Days</SelectItem>
-                          <SelectItem value="year">1 Year</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -539,8 +489,7 @@ const FuelReport: React.FC = () => {
                 <ChartContainer
                   className="h-[600px] w-full"
                   config={{
-                    level: { label: "Fuel Level", color: "hsl(var(--chart-1))" },
-                    avgLevel: { label: "Moving Average", color: "hsl(var(--chart-2))" },
+                    level: { label: "Average Fuel Level", color: "hsl(var(--chart-1))" },
                   }}
                 >
                   <ResponsiveContainer width="100%" height="100%">
@@ -549,10 +498,10 @@ const FuelReport: React.FC = () => {
                       <XAxis
                         dataKey="time"
                         tick={{ fontSize: 11 }}
-                        angle={chartTimePeriod === "year" ? -45 : 0}
-                        textAnchor={chartTimePeriod === "year" ? "end" : "middle"}
-                        height={chartTimePeriod === "year" ? 100 : 80}
-                        interval={chartTimePeriod === "day" ? 3 : chartTimePeriod === "week" ? 0 : 2}
+                        angle={0}
+                        textAnchor="middle"
+                        height={80}
+                        interval={0}
                       />
                       <YAxis
                         tick={{ fontSize: 12 }}
@@ -587,20 +536,11 @@ const FuelReport: React.FC = () => {
                       <Line
                         type="monotone"
                         dataKey="level"
-                        name="Fuel Level"
+                        name="Average Fuel Level"
                         stroke="#2563eb"
                         strokeWidth={4}
                         dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
                         activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="avgLevel"
-                        name="Moving Average"
-                        stroke="#f59e0b"
-                        strokeWidth={3}
-                        dot={false}
-                        strokeDasharray="8 6"
                       />
                     </LineChart>
                   </ResponsiveContainer>

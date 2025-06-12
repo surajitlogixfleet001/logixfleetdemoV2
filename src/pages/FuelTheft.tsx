@@ -185,7 +185,7 @@ const FuelTheft = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `fuel-theft-report-${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `fuel-Analysis-report-${new Date().toISOString().split("T")[0]}.csv`
     document.body.appendChild(a)
     a.click()
     window.URL.revokeObjectURL(url)
@@ -229,7 +229,7 @@ const FuelTheft = () => {
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
                 <ShieldAlert className="h-8 w-8 text-destructive" />
-                Fuel Theft Detection
+                Fuel Analysis Detection
               </h1>
               <p className="text-muted-foreground">Monitor and detect suspicious fuel activities across your fleet</p>
             </div>

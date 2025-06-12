@@ -63,7 +63,7 @@ const FuelReport = () => {
       setIsLoading(true);
       setError(null);
       
-      const token = localStorage.getItem('apiToken') || '6c19549d44d97c77712dc6236480522404d849d4';
+      const token = '6c19549d44d97c77712dc6236480522404d849d4';
       
       const response = await fetch('https://palmconnect.co/telematry/fuel-data/', {
         method: 'GET',
@@ -292,6 +292,10 @@ const FuelReport = () => {
   const currentPageRecordIds = currentData.map(data => data.id);
   const allCurrentPageSelected = currentPageRecordIds.length > 0 && 
     currentPageRecordIds.every(id => selectedRecords.includes(id));
+
+  // Calculate display count for table header
+  const displayCount = Math.min(50, filteredData.length);
+  const totalCount = filteredData.length;
 
   if (isLoading) {
     return (
@@ -551,7 +555,9 @@ const FuelReport = () => {
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Fuel data ({filteredData.length} records)</CardTitle>
+                <CardTitle>
+                  Fuel data (Showing {displayCount} of {totalCount} Records)
+                </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">
                     {selectedRecords.length} selected

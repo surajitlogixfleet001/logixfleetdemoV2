@@ -110,7 +110,6 @@ const Login = () => {
             </Button>
           </form>
           <div className="mt-6 text-center text-sm text-muted-foreground">
-            <p>Demo credentials: any email and password</p>
           </div>
         </CardContent>
       </Card>

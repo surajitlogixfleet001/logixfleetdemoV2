@@ -44,7 +44,7 @@ const Login = () => {
 
       // Store token and user info
       localStorage.setItem('authToken', token);
-      localStorage.setItem('userEmail', full_name);
+      localStorage.setItem('userFname', full_name);
       localStorage.setItem('isLoggedIn', 'true');
 
       toast({

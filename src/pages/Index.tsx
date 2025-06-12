@@ -170,7 +170,7 @@ const Index = () => {
         if (fuelResponse.data.sensor_data?.length > 0) {
           setCurrentData(fuelResponse.data.sensor_data[0]);
         }
-        const stored = localStorage.getItem('userEmail');
+        const stored = localStorage.getItem('userFname');
         if (stored) {
           setEmail(stored);
         }

@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine, ResponsiveContainer } from "recharts";
 import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -457,13 +457,7 @@ const FuelReport = () => {
               </CardHeader>
               <CardContent>
                 <ChartContainer config={chartConfig} className="h-[400px]">
-                  <AreaChart data={currentVehicleData}>
-                    <defs>
-                      <linearGradient id="fillLevel" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="hsl(var(--chart-1))" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="hsl(var(--chart-1))" stopOpacity={0.1}/>
-                      </linearGradient>
-                    </defs>
+                  <LineChart data={currentVehicleData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis 
                       dataKey="time" 
@@ -490,15 +484,15 @@ const FuelReport = () => {
                       strokeDasharray="3 3"
                       label={{ value: "Critical (5L)", position: "bottom" }}
                     />
-                    <Area
+                    <Line
                       type="monotone"
                       dataKey="level"
                       stroke="hsl(var(--chart-1))"
-                      fillOpacity={1}
-                      fill="url(#fillLevel)"
-                      strokeWidth={2}
+                      strokeWidth={3}
+                      dot={{ fill: "hsl(var(--chart-1))", strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: "hsl(var(--chart-1))", strokeWidth: 2 }}
                     />
-                  </AreaChart>
+                  </LineChart>
                 </ChartContainer>
               </CardContent>
             </Card>

@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/pagination"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
 import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle } from "lucide-react"
 import api from "@/lib/api"
 
@@ -201,14 +201,16 @@ const FuelTheft = () => {
   const rapidDropCount = filteredEvents.filter((e) => e.event_type === "rapid_drop").length
   const highSeverityCount = filteredEvents.filter((e) => e.severity === "HIGH").length
 
-  // Prepare chart data for fuel theft events
+  // Prepare chart data for fuel theft events - sorted by timestamp for line chart
   const chartData = filteredEvents
     .filter((event) => event.event_type === "theft" || event.event_type === "rapid_drop")
-    .map((event) => ({
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .map((event, index) => ({
       timestamp: event.timestamp_display,
       vehicle: event.vehicle_name.replace("Fleet Vehicle ", "V"),
       amount: Math.abs(Number.parseFloat(event.change_amount)),
       type: event.event_type,
+      index: index + 1, // For x-axis ordering
     }))
 
   const chartConfig = {
@@ -295,13 +297,18 @@ const FuelTheft = () => {
               {chartData.length > 0 && (
                 <Card>
                   <CardHeader>
-                    <CardTitle>Fuel Loss Events</CardTitle>
+                    <CardTitle>Fuel Loss Events Over Time</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <ChartContainer config={chartConfig} className="h-[300px]">
-                      <BarChart data={chartData}>
+                      <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis dataKey="timestamp" className="text-xs" tick={{ fontSize: 10 }} />
+                        <XAxis 
+                          dataKey="index" 
+                          className="text-xs" 
+                          tick={{ fontSize: 10 }}
+                          label={{ value: "Event Sequence", position: "insideBottom", offset: -5 }}
+                        />
                         <YAxis
                           className="text-xs"
                           tick={{ fontSize: 12 }}
@@ -313,7 +320,7 @@ const FuelTheft = () => {
                               const data = payload[0].payload
                               return (
                                 <div className="bg-background border rounded-lg shadow-lg p-3">
-                                  <p className="font-medium">{label}</p>
+                                  <p className="font-medium">{data.timestamp}</p>
                                   <p className="text-sm text-muted-foreground">{data.vehicle}</p>
                                   <p className="text-sm">
                                     <span className="text-destructive font-medium">-{data.amount}L</span>
@@ -325,8 +332,15 @@ const FuelTheft = () => {
                             return null
                           }}
                         />
-                        <Bar dataKey="amount" fill="hsl(var(--destructive))" radius={[2, 2, 0, 0]} />
-                      </BarChart>
+                        <Line 
+                          type="monotone" 
+                          dataKey="amount" 
+                          stroke="hsl(var(--destructive))" 
+                          strokeWidth={2}
+                          dot={{ fill: "hsl(var(--destructive))", strokeWidth: 2, r: 4 }}
+                          activeDot={{ r: 6, stroke: "hsl(var(--destructive))", strokeWidth: 2 }}
+                        />
+                      </LineChart>
                     </ChartContainer>
                   </CardContent>
                 </Card>

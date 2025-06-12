@@ -20,8 +20,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
 import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, CircleCheck, CircleAlert } from "lucide-react"
 import api from "@/lib/api"
 
@@ -60,8 +58,6 @@ const FuelTheft = () => {
   const [endDate, setEndDate] = useState("")
   const [eventTypeFilter, setEventTypeFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
-  const [chartSelection, setChartSelection] = useState("all")
-  const [appliedChartType, setAppliedChartType] = useState("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const itemsPerPage = 10
@@ -149,8 +145,6 @@ const FuelTheft = () => {
     setCurrentPage(1)
   }
 
-  const handleAnalyse = () => setAppliedChartType(chartSelection)
-
   // CSV download
   const downloadCSV = () => {
     const headers = [
@@ -191,24 +185,6 @@ const FuelTheft = () => {
     a.click()
     document.body.removeChild(a)
   }
-
-  // Chart Data - Always return an array, even if empty
-  const chartData = useMemo(() => {
-    const filteredChartEvents = filteredEvents
-      .filter((e) => appliedChartType === "all" || e.event_type === appliedChartType)
-      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-      .map((event, idx) => ({
-        timestamp: event.timestamp_display,
-        vehicle: event.vehicle_name.replace("Fleet Vehicle ", "V"),
-        amount: Math.abs(Number.parseFloat(event.change_amount)),
-        type: event.event_type,
-        index: idx + 1,
-      }))
-
-    return filteredChartEvents
-  }, [filteredEvents, appliedChartType])
-
-  const chartConfig = { amount: { label: "Fuel Change (L)", color: "hsl(var(--destructive))" } }
 
   // Pagination
   const totalPages = Math.ceil(filteredEvents.length / itemsPerPage)
@@ -291,95 +267,6 @@ const FuelTheft = () => {
                   </CardContent>
                 </Card>
               </div>
-
-              {/* Fuel Events Chart - Always visible */}
-              <Card>
-                <CardHeader className="flex items-center justify-between">
-                  <CardTitle>Fuel Loss Events Over Time</CardTitle>
-                  <div className="flex items-center gap-2">
-                    <Select value={chartSelection} onValueChange={setChartSelection}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="All Events" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All Events</SelectItem>
-                        {uniqueEventTypes.map((eventType) => (
-                          <SelectItem key={eventType.value} value={eventType.value}>
-                            {eventType.display}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Button onClick={handleAnalyse}>Analyse</Button>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  {chartData.length > 0 ? (
-                    <ChartContainer config={chartConfig} className="h-[300px]">
-                      <LineChart data={chartData}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis
-                          dataKey="index"
-                          className="text-xs"
-                          tick={{ fontSize: 10 }}
-                          label={{ value: "Event Sequence", position: "insideBottom", offset: -5 }}
-                        />
-                        <YAxis
-                          className="text-xs"
-                          tick={{ fontSize: 12 }}
-                          label={{ value: "Fuel Loss (L)", angle: -90, position: "insideLeft" }}
-                        />
-                        <ChartTooltip
-                          content={({ active, payload }) => {
-                            if (active && payload && payload.length) {
-                              const data = payload[0].payload
-                              return (
-                                <div className="bg-background border rounded-lg shadow-lg p-3">
-                                  <p className="font-medium">{data.timestamp}</p>
-                                  <p className="text-sm text-muted-foreground">{data.vehicle}</p>
-                                  <p className="text-sm">
-                                    <span className="text-destructive font-medium">-{data.amount}L</span>
-                                    <span className="ml-2 text-xs capitalize">({data.type.replace("_", " ")})</span>
-                                  </p>
-                                </div>
-                              )
-                            }
-                            return null
-                          }}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="amount"
-                          stroke="hsl(var(--destructive))"
-                          strokeWidth={appliedChartType === "all" ? 2 : 3}
-                          dot={{
-                            fill: "hsl(var(--destructive))",
-                            strokeWidth: 2,
-                            r: appliedChartType === "all" ? 4 : 6,
-                          }}
-                          activeDot={{
-                            r: appliedChartType === "all" ? 6 : 8,
-                            stroke: "hsl(var(--destructive))",
-                            strokeWidth: 2,
-                          }}
-                        />
-                      </LineChart>
-                    </ChartContainer>
-                  ) : (
-                    <div className="h-[300px] flex items-center justify-center border border-dashed border-muted-foreground/25 rounded-lg">
-                      <div className="text-center text-muted-foreground">
-                        <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                        <p className="text-lg font-medium">No Data Available</p>
-                        <p className="text-sm">
-                          {appliedChartType === "all"
-                            ? "No events found for the current filters"
-                            : `No events found for "${uniqueEventTypes.find((t) => t.value === appliedChartType)?.display || appliedChartType}"`}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
 
               {/* Filters */}
               <Card>

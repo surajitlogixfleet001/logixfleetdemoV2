@@ -7,7 +7,6 @@ import { AppSidebar } from "@/components/AppSidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -32,9 +31,10 @@ import {
   Legend,
   Tooltip,
 } from "recharts"
-import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2 } from "lucide-react"
+import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Progress } from "@/components/ui/progress"
 
 interface SensorData {
   id: number
@@ -56,6 +56,14 @@ interface SensorData {
 
 interface ApiResponse {
   sensor_data: SensorData[]
+  pagination?: {
+    current_page: number
+    total_pages: number
+    total_items: number
+    page_size: number
+    has_next: boolean
+    has_previous: boolean
+  }
 }
 
 type TimePeriod = "day" | "week"
@@ -69,29 +77,53 @@ interface ChartDataPoint {
   dataCount: number
 }
 
+interface LoadingState {
+  isLoading: boolean
+  currentPage: number
+  totalPages: number
+  loadedRecords: number
+  totalRecords: number
+  progress: number
+}
+
 const FuelReport: React.FC = () => {
   const [sensorData, setSensorData] = useState<SensorData[]>([])
   const [filteredData, setFilteredData] = useState<SensorData[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all")
   const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("")
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
-  const [startDate, setStartDate] = useState<string>("")
-  const [endDate, setEndDate] = useState<string>("")
+  const [dateFilter, setDateFilter] = useState<"day" | "week" | "month">("day")
   const [currentPage, setCurrentPage] = useState<number>(1)
-  const [isLoading, setIsLoading] = useState<boolean>(true)
+  const [loadingState, setLoadingState] = useState<LoadingState>({
+    isLoading: true,
+    currentPage: 0,
+    totalPages: 0,
+    loadedRecords: 0,
+    totalRecords: 0,
+    progress: 0,
+  })
   const [error, setError] = useState<string | null>(null)
   const [selectedRecords, setSelectedRecords] = useState<number[]>([])
   const { toast } = useToast()
 
-  const itemsPerPage = 10
+  const itemsPerPage = 25
   const API_URL = "https://palmconnect.co/telematry/fuel-data/"
   const API_TOKEN = localStorage.getItem("authToken")
 
   const fetchFuelData = async () => {
     try {
-      setIsLoading(true)
+      setLoadingState({
+        isLoading: true,
+        currentPage: 0,
+        totalPages: 0,
+        loadedRecords: 0,
+        totalRecords: 0,
+        progress: 0,
+      })
       setError(null)
-      const response = await fetch(API_URL, {
+
+      // First, get the first page to know total pages and show initial data
+      const firstResponse = await fetch(`${API_URL}?page=1`, {
         method: "GET",
         headers: {
           Authorization: `Token ${API_TOKEN}`,
@@ -99,26 +131,107 @@ const FuelReport: React.FC = () => {
         },
       })
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
+      if (!firstResponse.ok) {
+        throw new Error(`HTTP error! status: ${firstResponse.status}`)
       }
 
-      const data: ApiResponse = await response.json()
-      if (data.sensor_data && Array.isArray(data.sensor_data)) {
-        setSensorData(data.sensor_data)
-        setFilteredData(data.sensor_data)
-        if (data.sensor_data.length > 0) {
-          setSelectedChartVehicle((prev) => prev || data.sensor_data[0].vehicle_name)
-        }
-      } else {
+      const firstData: ApiResponse & { pagination: any } = await firstResponse.json()
+
+      if (!firstData.sensor_data || !Array.isArray(firstData.sensor_data)) {
         throw new Error("Invalid data format received from API")
+      }
+
+      const totalPages = firstData.pagination?.total_pages || 1
+      const totalRecords = firstData.pagination?.total_items || firstData.sensor_data.length
+
+      // Show first page data immediately
+      setSensorData(firstData.sensor_data)
+      setFilteredData(firstData.sensor_data)
+      if (firstData.sensor_data.length > 0) {
+        setSelectedChartVehicle((prev) => prev || firstData.sensor_data[0].vehicle_name)
+      }
+
+      setLoadingState({
+        isLoading: totalPages > 1,
+        currentPage: 1,
+        totalPages,
+        loadedRecords: firstData.sensor_data.length,
+        totalRecords,
+        progress: totalPages > 1 ? (1 / totalPages) * 100 : 100,
+      })
+
+      // If there are more pages, load them progressively
+      if (totalPages > 1) {
+        const batchSize = 3 // Smaller batches for more frequent updates
+        const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
+
+        for (let i = 0; i < remainingPages.length; i += batchSize) {
+          const batch = remainingPages.slice(i, i + batchSize)
+
+          const batchPromises = batch.map((page) =>
+            fetch(`${API_URL}?page=${page}`, {
+              method: "GET",
+              headers: {
+                Authorization: `Token ${API_TOKEN}`,
+                "Content-Type": "application/json",
+              },
+            }).then((res) => res.json()),
+          )
+
+          const batchResults = await Promise.all(batchPromises)
+
+          // Update data progressively
+          setSensorData((prevData) => {
+            const newData = [...prevData]
+            batchResults.forEach((data: ApiResponse) => {
+              if (data.sensor_data && Array.isArray(data.sensor_data)) {
+                newData.push(...data.sensor_data)
+              }
+            })
+            return newData
+          })
+
+          // Update filtered data if no filters are applied
+          setFilteredData((prevFiltered) => {
+            const newFiltered = [...prevFiltered]
+            batchResults.forEach((data: ApiResponse) => {
+              if (data.sensor_data && Array.isArray(data.sensor_data)) {
+                newFiltered.push(...data.sensor_data)
+              }
+            })
+            return newFiltered
+          })
+
+          // Update loading state
+          const loadedPages = 1 + i + batch.length
+          const newLoadedRecords =
+            firstData.sensor_data.length + batchResults.reduce((sum, data) => sum + (data.sensor_data?.length || 0), 0)
+
+          setLoadingState({
+            isLoading: loadedPages < totalPages,
+            currentPage: loadedPages,
+            totalPages,
+            loadedRecords: newLoadedRecords,
+            totalRecords,
+            progress: (loadedPages / totalPages) * 100,
+          })
+
+          // Small delay to prevent overwhelming the API
+          if (i + batchSize < remainingPages.length) {
+            await new Promise((resolve) => setTimeout(resolve, 100))
+          }
+        }
+
+        toast({
+          title: "Data Loading Complete",
+          description: `Successfully loaded all ${totalRecords} fuel records.`,
+        })
       }
     } catch (err: any) {
       console.error("Error fetching fuel data:", err)
       setError(err.message || "Failed to fetch fuel data")
+      setLoadingState((prev) => ({ ...prev, isLoading: false }))
       toast({ title: "Error", description: "Failed to fetch fuel data. Please try again.", variant: "destructive" })
-    } finally {
-      setIsLoading(false)
     }
   }
 
@@ -128,9 +241,32 @@ const FuelReport: React.FC = () => {
 
   const handleFilter = () => {
     let filtered = sensorData
-    if (selectedVehicle !== "all") filtered = filtered.filter((d) => d.vehicle_name === selectedVehicle)
-    if (startDate) filtered = filtered.filter((d) => new Date(d.timestamp) >= new Date(startDate))
-    if (endDate) filtered = filtered.filter((d) => new Date(d.timestamp) <= new Date(endDate))
+
+    // Vehicle filter
+    if (selectedVehicle !== "all") {
+      filtered = filtered.filter((d) => d.vehicle_name === selectedVehicle)
+    }
+
+    // Date filter based on selection
+    const now = new Date()
+    let startTime: Date
+
+    switch (dateFilter) {
+      case "day":
+        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+        break
+      case "week":
+        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+        break
+      case "month":
+        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+        break
+      default:
+        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    }
+
+    filtered = filtered.filter((d) => new Date(d.timestamp) >= startTime)
+
     setFilteredData(filtered)
     setCurrentPage(1)
     setSelectedRecords([])
@@ -138,8 +274,7 @@ const FuelReport: React.FC = () => {
 
   const clearFilters = () => {
     setSelectedVehicle("all")
-    setStartDate("")
-    setEndDate("")
+    setDateFilter("day")
     setFilteredData(sensorData)
     setCurrentPage(1)
     setSelectedRecords([])
@@ -332,15 +467,18 @@ const FuelReport: React.FC = () => {
   const availableVehicles = Array.from(new Set(sensorData.map((d) => d.vehicle_name)))
   const allCurrentPageSelected = currentData.length > 0 && currentData.every((d) => selectedRecords.includes(d.id))
 
-  if (isLoading) {
+  if (sensorData.length === 0 && loadingState.isLoading) {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
           <AppSidebar />
           <main className="flex-1 p-6 flex items-center justify-center">
-            <div className="flex items-center gap-2">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              <span>Loading fuel data...</span>
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                <p className="mt-4 text-muted-foreground">Loading initial fuel data...</p>
+                <p className="text-sm text-muted-foreground">Please wait while we fetch your data</p>
+              </div>
             </div>
           </main>
         </div>
@@ -383,10 +521,43 @@ const FuelReport: React.FC = () => {
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
             </div>
-            <Button onClick={fetchFuelData} variant="outline">
+            <Button onClick={fetchFuelData} variant="outline" disabled={loadingState.isLoading}>
+              {loadingState.isLoading ? (
+                <Loader2 className="h-4 w-4 animate-spin mr-2" />
+              ) : (
+                <RefreshCw className="h-4 w-4 mr-2" />
+              )}
               Refresh Data
             </Button>
           </div>
+
+          {/* Loading Progress */}
+          {loadingState.isLoading && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  Loading Data...
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>
+                      Progress: {loadingState.currentPage} of {loadingState.totalPages} pages
+                    </span>
+                    <span>
+                      {loadingState.loadedRecords} of {loadingState.totalRecords} records
+                    </span>
+                  </div>
+                  <Progress value={loadingState.progress} className="w-full" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  You can view and filter the data below while more records are being loaded in the background.
+                </p>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Statistics */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -453,6 +624,9 @@ const FuelReport: React.FC = () => {
                     <span className="text-sm font-normal text-muted-foreground ml-2">
                       ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
                     </span>
+                    {loadingState.isLoading && (
+                      <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
+                    )}
                   </CardTitle>
                   <div className="flex items-center gap-4">
                     <div className="flex items-center gap-2">
@@ -555,7 +729,7 @@ const FuelReport: React.FC = () => {
               <CardTitle>Filters</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="vehicle">Vehicle</Label>
                   <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
@@ -573,22 +747,17 @@ const FuelReport: React.FC = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="start-date">Start Date</Label>
-                  <Input
-                    id="start-date"
-                    type="datetime-local"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="end-date">End Date</Label>
-                  <Input
-                    id="end-date"
-                    type="datetime-local"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
-                  />
+                  <Label htmlFor="date-filter">Time Period</Label>
+                  <Select value={dateFilter} onValueChange={(v: "day" | "week" | "month") => setDateFilter(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="day">Last 24 Hours</SelectItem>
+                      <SelectItem value="week">Last 7 Days</SelectItem>
+                      <SelectItem value="month">Last 30 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="flex gap-2 items-end">
                   <Button onClick={handleFilter}>Apply Filters</Button>
@@ -606,6 +775,11 @@ const FuelReport: React.FC = () => {
               <div className="flex items-center justify-between">
                 <CardTitle>
                   Fuel Data (Showing {startIndex + 1}-{endIndex} of {totalCount} Records)
+                  {loadingState.isLoading && (
+                    <span className="text-sm font-normal text-orange-600 ml-2">
+                      (Loading more data... {loadingState.loadedRecords}/{loadingState.totalRecords})
+                    </span>
+                  )}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
@@ -675,9 +849,12 @@ const FuelReport: React.FC = () => {
                 </Table>
               </ScrollArea>
 
-              {/* Pagination */}
+              {/* Improved Pagination */}
               {totalPages > 1 && (
-                <div className="mt-4">
+                <div className="mt-4 flex items-center justify-between">
+                  <div className="text-sm text-muted-foreground">
+                    Page {currentPage} of {totalPages} ({totalCount} total records)
+                  </div>
                   <Pagination>
                     <PaginationContent>
                       <PaginationItem>
@@ -690,20 +867,65 @@ const FuelReport: React.FC = () => {
                           className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
                         />
                       </PaginationItem>
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                        <PaginationItem key={page}>
-                          <PaginationLink
-                            href="#"
-                            onClick={(e) => {
-                              e.preventDefault()
-                              setCurrentPage(page)
-                            }}
-                            isActive={page === currentPage}
-                          >
-                            {page}
-                          </PaginationLink>
-                        </PaginationItem>
-                      ))}
+
+                      {/* Show first page */}
+                      {currentPage > 3 && (
+                        <>
+                          <PaginationItem>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setCurrentPage(1)
+                              }}
+                            >
+                              1
+                            </PaginationLink>
+                          </PaginationItem>
+                          {currentPage > 4 && <span className="px-2">...</span>}
+                        </>
+                      )}
+
+                      {/* Show pages around current page */}
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
+                        if (pageNum <= totalPages) {
+                          return (
+                            <PaginationItem key={pageNum}>
+                              <PaginationLink
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault()
+                                  setCurrentPage(pageNum)
+                                }}
+                                isActive={pageNum === currentPage}
+                              >
+                                {pageNum}
+                              </PaginationLink>
+                            </PaginationItem>
+                          )
+                        }
+                        return null
+                      })}
+
+                      {/* Show last page */}
+                      {currentPage < totalPages - 2 && (
+                        <>
+                          {currentPage < totalPages - 3 && <span className="px-2">...</span>}
+                          <PaginationItem>
+                            <PaginationLink
+                              href="#"
+                              onClick={(e) => {
+                                e.preventDefault()
+                                setCurrentPage(totalPages)
+                              }}
+                            >
+                              {totalPages}
+                            </PaginationLink>
+                          </PaginationItem>
+                        </>
+                      )}
+
                       <PaginationItem>
                         <PaginationNext
                           href="#"

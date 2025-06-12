@@ -33,7 +33,7 @@ const navigationItems = [
     url: "/dashboard/fuel-report",
   },
   {
-    title: "Fuel Theft",
+    title: "Fuel Analysis",
     icon: ShieldAlert,
     url: "/dashboard/fuel-theft",
   },

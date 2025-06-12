@@ -96,6 +96,7 @@ const Index = () => {
   const [fuelData, setFuelData] = useState<FuelData[]>([]);
   const [fuelEvents, setFuelEvents] = useState<FuelEvent[]>([]);
   const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentData, setCurrentData] = useState<FuelData | null>(null);
@@ -169,6 +170,11 @@ const Index = () => {
         if (fuelResponse.data.sensor_data?.length > 0) {
           setCurrentData(fuelResponse.data.sensor_data[0]);
         }
+        const stored = localStorage.getItem('userEmail');
+        if (stored) {
+          setEmail(stored);
+        }
+
         
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -194,7 +200,7 @@ const Index = () => {
                   <SidebarTrigger />
                   <div>
                     <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                      Welcome Test
+                      Welcome {email}
                     </h1>
                     <p className="text-muted-foreground mt-2">
                       Real-time vehicle tracking and fuel monitoring system

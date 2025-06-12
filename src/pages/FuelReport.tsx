@@ -56,7 +56,7 @@ const FuelReport: React.FC = () => {
 
   const itemsPerPage = 10;
   const API_URL = 'https://palmconnect.co/telematry/fuel-data/';
-  const API_TOKEN = '6c19549d44d97c77712dc6236480522404d849d4';
+  const API_TOKEN = localStorage.getItem('authToken');
 
   // Fetch fuel data from API
   const fetchFuelData = async () => {

@@ -37,14 +37,14 @@ const Login = () => {
       }
 
       // Assuming the API returns { token: '...' }
-      const { token } = data;
+      const { token ,full_name } = data;
       if (!token) {
         throw new Error('No token returned from server');
       }
 
       // Store token and user info
       localStorage.setItem('authToken', token);
-      localStorage.setItem('userEmail', email);
+      localStorage.setItem('userEmail', full_name);
       localStorage.setItem('isLoggedIn', 'true');
 
       toast({

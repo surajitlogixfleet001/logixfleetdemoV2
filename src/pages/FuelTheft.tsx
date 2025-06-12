@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,8 +21,8 @@ import {
 } from "@/components/ui/pagination"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChartContainer, ChartTooltip } from "@/components/ui/chart"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ResponsiveContainer } from "recharts"
-import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle } from "lucide-react"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid } from "recharts"
+import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, CircleCheck, CircleAlert } from "lucide-react"
 import api from "@/lib/api"
 
 interface FuelEvent {
@@ -51,6 +51,7 @@ interface FuelEvent {
 }
 
 const FuelTheft = () => {
+  // State
   const [events, setEvents] = useState<FuelEvent[]>([])
   const [filteredEvents, setFilteredEvents] = useState<FuelEvent[]>([])
   const [selectedEvent, setSelectedEvent] = useState<FuelEvent | null>(null)
@@ -59,10 +60,25 @@ const FuelTheft = () => {
   const [endDate, setEndDate] = useState("")
   const [eventTypeFilter, setEventTypeFilter] = useState("all")
   const [severityFilter, setSeverityFilter] = useState("all")
+  const [chartSelection, setChartSelection] = useState("all")
+  const [appliedChartType, setAppliedChartType] = useState("all")
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const itemsPerPage = 10
 
+  // Get unique event types from the data
+  const uniqueEventTypes = useMemo(() => {
+    const types = [...new Set(events.map((event) => event.event_type))]
+    return types.map((type) => {
+      const event = events.find((e) => e.event_type === type)
+      return {
+        value: type,
+        display: event?.event_display || type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase()),
+      }
+    })
+  }, [events])
+
+  // Fetch data
   useEffect(() => {
     const fetchFuelEvents = async () => {
       try {
@@ -70,70 +86,56 @@ const FuelTheft = () => {
         const response = await api.get("/fuel-events/")
         setEvents(response.data.fuel_events)
         setFilteredEvents(response.data.fuel_events)
-        setLoading(false)
       } catch (err) {
         console.error("Error fetching fuel events:", err)
         setError("Failed to fetch fuel events data. Please try again later.")
+      } finally {
         setLoading(false)
       }
     }
-
     fetchFuelEvents()
   }, [])
 
-  const getEventTypeLabel = (type: string) => {
-    return type
-      .replace("_", " ")
-      .split(" ")
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-      .join(" ")
-  }
-
-  const getEventIcon = (type: string) => {
-    switch (type) {
-      case "theft":
+  // Helper Functions
+  const getEventIcon = (iconName: string, type: string) => {
+    switch (iconName) {
+      case "shield-alert":
         return <ShieldAlert className="h-4 w-4" />
-      case "rapid_drop":
-        return <AlertTriangle className="h-4 w-4" />
-      case "refuel":
-        return <Fuel className="h-4 w-4" />
-      case "sensor_lost":
-        return <AlertTriangle className="h-4 w-4 text-orange-500" />
-      case "sensor_restored":
-        return <Clock className="h-4 w-4 text-green-500" />
+      case "circle-alert":
+        return <CircleAlert className="h-4 w-4 text-orange-500" />
+      case "circle-check":
+        return <CircleCheck className="h-4 w-4 text-green-500" />
       default:
-        return <Clock className="h-4 w-4" />
+        // Fallback based on event type
+        switch (type) {
+          case "theft":
+            return <ShieldAlert className="h-4 w-4" />
+          case "rapid_drop":
+            return <AlertTriangle className="h-4 w-4" />
+          case "refuel":
+            return <Fuel className="h-4 w-4" />
+          case "sensor_lost":
+            return <AlertTriangle className="h-4 w-4 text-orange-500" />
+          case "sensor_restored":
+            return <Clock className="h-4 w-4 text-green-500" />
+          default:
+            return <Clock className="h-4 w-4" />
+        }
     }
   }
 
   const getSeverityBadge = (severity: string) => {
-    const variants = {
-      HIGH: "destructive",
-      MEDIUM: "secondary",
-      LOW: "outline",
-    }
+    const variants = { HIGH: "destructive", MEDIUM: "secondary", LOW: "outline" }
     return variants[severity as keyof typeof variants] || "outline"
   }
 
+  // Filters
   const handleFilter = () => {
     let filtered = events
-
-    if (startDate) {
-      filtered = filtered.filter((event) => new Date(event.timestamp) >= new Date(startDate))
-    }
-
-    if (endDate) {
-      filtered = filtered.filter((event) => new Date(event.timestamp) <= new Date(endDate))
-    }
-
-    if (eventTypeFilter !== "all") {
-      filtered = filtered.filter((event) => event.event_type === eventTypeFilter)
-    }
-
-    if (severityFilter !== "all") {
-      filtered = filtered.filter((event) => event.severity === severityFilter)
-    }
-
+    if (startDate) filtered = filtered.filter((e) => new Date(e.timestamp) >= new Date(startDate))
+    if (endDate) filtered = filtered.filter((e) => new Date(e.timestamp) <= new Date(endDate))
+    if (eventTypeFilter !== "all") filtered = filtered.filter((e) => e.event_type === eventTypeFilter)
+    if (severityFilter !== "all") filtered = filtered.filter((e) => e.severity === severityFilter)
     setFilteredEvents(filtered)
     setCurrentPage(1)
   }
@@ -147,6 +149,9 @@ const FuelTheft = () => {
     setCurrentPage(1)
   }
 
+  const handleAnalyse = () => setAppliedChartType(chartSelection)
+
+  // CSV download
   const downloadCSV = () => {
     const headers = [
       "ID",
@@ -161,64 +166,58 @@ const FuelTheft = () => {
       "Severity",
       "Notes",
     ]
-
-    const csvContent = [
-      headers.join(","),
-      ...filteredEvents.map((event) =>
-        [
-          event.id,
-          `"${event.vehicle_name}"`,
-          `"${event.event_display}"`,
-          event.timestamp,
-          event.previous_level,
-          event.current_level,
-          event.change_amount,
-          event.location_latitude,
-          event.location_longitude,
-          event.severity,
-          `"${event.notes}"`,
-        ].join(","),
-      ),
-    ].join("\n")
-
+    const rows = filteredEvents.map((e) =>
+      [
+        e.id,
+        `"${e.vehicle_name}"`,
+        `"${e.event_display}"`,
+        e.timestamp,
+        e.previous_level,
+        e.current_level,
+        e.change_amount,
+        e.location_latitude,
+        e.location_longitude,
+        e.severity,
+        `"${e.notes}"`,
+      ].join(","),
+    )
+    const csvContent = [headers.join(","), ...rows].join("\n")
     const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
+    const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = `fuel-Analysis-report-${new Date().toISOString().split("T")[0]}.csv`
+    a.download = `fuel-report-${new Date().toISOString().split("T")[0]}.csv`
     document.body.appendChild(a)
     a.click()
-    window.URL.revokeObjectURL(url)
     document.body.removeChild(a)
   }
 
+  // Chart Data - Always return an array, even if empty
+  const chartData = useMemo(() => {
+    const filteredChartEvents = filteredEvents
+      .filter((e) => appliedChartType === "all" || e.event_type === appliedChartType)
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      .map((event, idx) => ({
+        timestamp: event.timestamp_display,
+        vehicle: event.vehicle_name.replace("Fleet Vehicle ", "V"),
+        amount: Math.abs(Number.parseFloat(event.change_amount)),
+        type: event.event_type,
+        index: idx + 1,
+      }))
+
+    return filteredChartEvents
+  }, [filteredEvents, appliedChartType])
+
+  const chartConfig = { amount: { label: "Fuel Change (L)", color: "hsl(var(--destructive))" } }
+
+  // Pagination
   const totalPages = Math.ceil(filteredEvents.length / itemsPerPage)
   const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = startIndex + itemsPerPage
-  const currentEvents = filteredEvents.slice(startIndex, endIndex)
+  const currentEvents = filteredEvents.slice(startIndex, startIndex + itemsPerPage)
 
   const theftCount = filteredEvents.filter((e) => e.event_type === "theft").length
   const rapidDropCount = filteredEvents.filter((e) => e.event_type === "rapid_drop").length
   const highSeverityCount = filteredEvents.filter((e) => e.severity === "HIGH").length
-
-  // Prepare chart data for fuel theft events - sorted by timestamp for line chart
-  const chartData = filteredEvents
-    .filter((event) => event.event_type === "theft" || event.event_type === "rapid_drop")
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
-    .map((event, index) => ({
-      timestamp: event.timestamp_display,
-      vehicle: event.vehicle_name.replace("Fleet Vehicle ", "V"),
-      amount: Math.abs(Number.parseFloat(event.change_amount)),
-      type: event.event_type,
-      index: index + 1, // For x-axis ordering
-    }))
-
-  const chartConfig = {
-    amount: {
-      label: "Fuel Loss (L)",
-      color: "hsl(var(--destructive))",
-    },
-  }
 
   return (
     <SidebarProvider>
@@ -293,19 +292,35 @@ const FuelTheft = () => {
                 </Card>
               </div>
 
-              {/* Fuel Events Chart */}
-              {chartData.length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Fuel Loss Events Over Time</CardTitle>
-                  </CardHeader>
-                  <CardContent>
+              {/* Fuel Events Chart - Always visible */}
+              <Card>
+                <CardHeader className="flex items-center justify-between">
+                  <CardTitle>Fuel Loss Events Over Time</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Select value={chartSelection} onValueChange={setChartSelection}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Events" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Events</SelectItem>
+                        {uniqueEventTypes.map((eventType) => (
+                          <SelectItem key={eventType.value} value={eventType.value}>
+                            {eventType.display}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={handleAnalyse}>Analyse</Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {chartData.length > 0 ? (
                     <ChartContainer config={chartConfig} className="h-[300px]">
                       <LineChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                        <XAxis 
-                          dataKey="index" 
-                          className="text-xs" 
+                        <XAxis
+                          dataKey="index"
+                          className="text-xs"
                           tick={{ fontSize: 10 }}
                           label={{ value: "Event Sequence", position: "insideBottom", offset: -5 }}
                         />
@@ -315,7 +330,7 @@ const FuelTheft = () => {
                           label={{ value: "Fuel Loss (L)", angle: -90, position: "insideLeft" }}
                         />
                         <ChartTooltip
-                          content={({ active, payload, label }) => {
+                          content={({ active, payload }) => {
                             if (active && payload && payload.length) {
                               const data = payload[0].payload
                               return (
@@ -332,19 +347,39 @@ const FuelTheft = () => {
                             return null
                           }}
                         />
-                        <Line 
-                          type="monotone" 
-                          dataKey="amount" 
-                          stroke="hsl(var(--destructive))" 
-                          strokeWidth={2}
-                          dot={{ fill: "hsl(var(--destructive))", strokeWidth: 2, r: 4 }}
-                          activeDot={{ r: 6, stroke: "hsl(var(--destructive))", strokeWidth: 2 }}
+                        <Line
+                          type="monotone"
+                          dataKey="amount"
+                          stroke="hsl(var(--destructive))"
+                          strokeWidth={appliedChartType === "all" ? 2 : 3}
+                          dot={{
+                            fill: "hsl(var(--destructive))",
+                            strokeWidth: 2,
+                            r: appliedChartType === "all" ? 4 : 6,
+                          }}
+                          activeDot={{
+                            r: appliedChartType === "all" ? 6 : 8,
+                            stroke: "hsl(var(--destructive))",
+                            strokeWidth: 2,
+                          }}
                         />
                       </LineChart>
                     </ChartContainer>
-                  </CardContent>
-                </Card>
-              )}
+                  ) : (
+                    <div className="h-[300px] flex items-center justify-center border border-dashed border-muted-foreground/25 rounded-lg">
+                      <div className="text-center text-muted-foreground">
+                        <AlertTriangle className="h-12 w-12 mx-auto mb-2 opacity-50" />
+                        <p className="text-lg font-medium">No Data Available</p>
+                        <p className="text-sm">
+                          {appliedChartType === "all"
+                            ? "No events found for the current filters"
+                            : `No events found for "${uniqueEventTypes.find((t) => t.value === appliedChartType)?.display || appliedChartType}"`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
               {/* Filters */}
               <Card>
@@ -379,11 +414,11 @@ const FuelTheft = () => {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="all">All Events</SelectItem>
-                          <SelectItem value="theft">Theft</SelectItem>
-                          <SelectItem value="rapid_drop">Rapid Drop</SelectItem>
-                          <SelectItem value="refuel">Refueling</SelectItem>
-                          <SelectItem value="sensor_lost">Sensor Lost</SelectItem>
-                          <SelectItem value="sensor_restored">Sensor Restored</SelectItem>
+                          {uniqueEventTypes.map((eventType) => (
+                            <SelectItem key={eventType.value} value={eventType.value}>
+                              {eventType.display}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -435,7 +470,7 @@ const FuelTheft = () => {
                           <TableRow key={event.id} className="hover:bg-muted/50">
                             <TableCell>
                               <div className="flex items-center gap-2">
-                                {getEventIcon(event.event_type)}
+                                {getEventIcon(event.event_icon, event.event_type)}
                                 <span className="font-medium">{event.event_display}</span>
                               </div>
                             </TableCell>
@@ -472,7 +507,7 @@ const FuelTheft = () => {
                                 <DialogContent className="max-w-2xl">
                                   <DialogHeader>
                                     <DialogTitle className="flex items-center gap-2">
-                                      {getEventIcon(event.event_type)}
+                                      {getEventIcon(event.event_icon, event.event_type)}
                                       Event Details - {event.event_display}
                                     </DialogTitle>
                                   </DialogHeader>
@@ -489,11 +524,11 @@ const FuelTheft = () => {
                                         </div>
                                         <div>
                                           <Label className="text-sm font-medium">Previous Level</Label>
-                                          <p className="text-sm">{selectedEvent.previous_level}</p>
+                                          <p className="text-sm">{selectedEvent.previous_level}L</p>
                                         </div>
                                         <div>
                                           <Label className="text-sm font-medium">Current Level</Label>
-                                          <p className="text-sm">{selectedEvent.current_level}</p>
+                                          <p className="text-sm">{selectedEvent.current_level}L</p>
                                         </div>
                                         <div>
                                           <Label className="text-sm font-medium">Change Amount</Label>
@@ -520,7 +555,7 @@ const FuelTheft = () => {
                                       </div>
                                       <div>
                                         <Label className="text-sm font-medium">Notes</Label>
-                                        <p className="text-sm">{selectedEvent.notes}</p>
+                                        <p className="text-sm">{selectedEvent.notes || "No notes available"}</p>
                                       </div>
                                     </div>
                                   )}

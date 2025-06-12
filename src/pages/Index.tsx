@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
@@ -78,6 +78,20 @@ interface FleetResponse {
   };
 }
 
+// Loading skeleton component for better UX
+const MetricCardSkeleton = () => (
+  <Card className="hover:shadow-lg transition-shadow">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <div className="h-4 w-20 bg-gray-200 rounded animate-pulse"></div>
+      <div className="h-4 w-4 bg-gray-200 rounded animate-pulse"></div>
+    </CardHeader>
+    <CardContent>
+      <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-2"></div>
+      <div className="h-3 w-24 bg-gray-200 rounded animate-pulse"></div>
+    </CardContent>
+  </Card>
+);
+
 const Index = () => {
   const [fuelData, setFuelData] = useState<FuelData[]>([]);
   const [fuelEvents, setFuelEvents] = useState<FuelEvent[]>([]);
@@ -86,8 +100,17 @@ const Index = () => {
   const [error, setError] = useState<string | null>(null);
   const [currentData, setCurrentData] = useState<FuelData | null>(null);
 
-  // Calculate theft metrics based on real data
-  const calculateTheftMetrics = () => {
+  // Memoize theft metrics calculation to avoid recalculation on every render
+  const fuelTheftData = useMemo(() => {
+    if (!fuelEvents.length || !vehicles.length) {
+      return {
+        totalVehicles: 0,
+        monthlyTheftCount: 0,
+        totalFuelStolen: 0,
+        highRiskVehicles: []
+      };
+    }
+
     const theftEvents = fuelEvents.filter(event => 
       event.event_type === 'theft' || event.event_type === 'rapid_drop'
     );
@@ -122,44 +145,41 @@ const Index = () => {
       totalFuelStolen: totalFuelStolen,
       highRiskVehicles: highRiskVehicles
     };
-  };
-
+  }, [fuelEvents, vehicles]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        setError(null);
         
-        // Fetch fuel data
-        const fuelResponse = await api.get('/fuel-data/');
-        setFuelData(fuelResponse.data.sensor_data);
+        // Make all API calls concurrently instead of sequentially
+        const [fuelResponse, vehiclesResponse, eventsResponse] = await Promise.all([
+          api.get('/fuel-data/'),
+          api.get('/vehicles/'),
+          api.get('/fuel-events/')
+        ]);
         
-        if (fuelResponse.data.sensor_data.length > 0) {
+        // Process responses
+        setFuelData(fuelResponse.data.sensor_data || []);
+        setVehicles(vehiclesResponse.data.fleet_overview || []);
+        setFuelEvents(eventsResponse.data.fuel_events || []);
+        
+        // Set current data if available
+        if (fuelResponse.data.sensor_data?.length > 0) {
           setCurrentData(fuelResponse.data.sensor_data[0]);
         }
         
-        // Fetch vehicles data
-        const vehiclesResponse = await api.get('/vehicles/');
-        setVehicles(vehiclesResponse.data.fleet_overview);
-        
-        // Fetch fuel events data
-        const eventsResponse = await api.get('/fuel-events/');
-        setFuelEvents(eventsResponse.data.fuel_events);
-        
-        setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
         setError('Failed to fetch data. Please check your connection and try again.');
+      } finally {
         setLoading(false);
       }
     };
 
-    // Only fetch once when component mounts or page refreshes
     fetchData();
   }, []);
-
-  // Calculate theft metrics
-  const fuelTheftData = calculateTheftMetrics();
 
   return (
     <SidebarProvider>
@@ -183,26 +203,18 @@ const Index = () => {
                 </div>
               </div>
 
-              {loading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-4 text-muted-foreground">Loading data...</p>
-                  </div>
-                </div>
-              ) : error ? (
-                <Card className="border-destructive">
-                  <CardContent className="pt-6">
-                    <div className="text-center text-destructive">
-                      <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
-                      <p>{error}</p>
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <>
-                  {/* Key Metrics Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+              {/* Key Metrics Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                {loading ? (
+                  // Show skeleton loading for better UX
+                  <>
+                    <MetricCardSkeleton />
+                    <MetricCardSkeleton />
+                    <MetricCardSkeleton />
+                    <MetricCardSkeleton />
+                  </>
+                ) : (
+                  <>
                     <Card className="hover:shadow-lg transition-shadow">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-sm font-medium">Total Vehicles</CardTitle>
@@ -254,39 +266,69 @@ const Index = () => {
                         </p>
                       </CardContent>
                     </Card>
-                  </div>
+                  </>
+                )}
+              </div>
 
-                  {/* High Risk Vehicles Card */}
-                  <Card className="mb-8">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-orange-500" />
-                        Vehicles with High Risk of Fuel Theft
-                      </CardTitle>
-                      <CardDescription>
-                        Vehicles showing patterns of suspicious fuel activity
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {fuelTheftData.highRiskVehicles.map((vehicle, index) => (
-                          <div key={index} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-                            <div>
-                              <h4 className="font-semibold">{vehicle.name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                Last theft detected: {new Date(vehicle.lastTheft).toLocaleDateString()}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-lg font-bold text-destructive">{vehicle.riskScore}%</div>
-                              <p className="text-xs text-muted-foreground">Risk Score</p>
-                            </div>
+              {/* Error State */}
+              {error && (
+                <Card className="border-destructive">
+                  <CardContent className="pt-6">
+                    <div className="text-center text-destructive">
+                      <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
+                      <p>{error}</p>
+                      <button 
+                        onClick={() => window.location.reload()} 
+                        className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* High Risk Vehicles Card */}
+              {!loading && !error && fuelTheftData.highRiskVehicles.length > 0 && (
+                <Card className="mb-8">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <AlertTriangle className="h-5 w-5 text-orange-500" />
+                      Vehicles with High Risk of Fuel Theft
+                    </CardTitle>
+                    <CardDescription>
+                      Vehicles showing patterns of suspicious fuel activity
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-4">
+                      {fuelTheftData.highRiskVehicles.map((vehicle, index) => (
+                        <div key={index} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                          <div>
+                            <h4 className="font-semibold">{vehicle.name}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              Last theft detected: {new Date(vehicle.lastTheft).toLocaleDateString()}
+                            </p>
                           </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </>
+                          <div className="text-right">
+                            <div className="text-lg font-bold text-destructive">{vehicle.riskScore}%</div>
+                            <p className="text-xs text-muted-foreground">Risk Score</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Loading state for detailed sections */}
+              {loading && (
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-4 text-sm text-muted-foreground">Loading additional data...</p>
+                  </div>
+                </div>
               )}
             </div>
           </div>

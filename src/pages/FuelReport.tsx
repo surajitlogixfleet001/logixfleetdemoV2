@@ -86,14 +86,31 @@ interface LoadingState {
   progress: number
 }
 
+interface PaginationState {
+  currentPage: number
+  totalPages: number
+  totalItems: number
+  pageSize: number
+  hasNext: boolean
+  hasPrevious: boolean
+}
+
 const FuelReport: React.FC = () => {
   const [sensorData, setSensorData] = useState<SensorData[]>([])
+  const [tableData, setTableData] = useState<SensorData[]>([])
   const [filteredData, setFilteredData] = useState<SensorData[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all")
   const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("")
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
   const [dateFilter, setDateFilter] = useState<"day" | "week" | "month">("day")
-  const [currentPage, setCurrentPage] = useState<number>(1)
+  const [paginationState, setPaginationState] = useState<PaginationState>({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    pageSize: 50,
+    hasNext: false,
+    hasPrevious: false,
+  })
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: true,
     currentPage: 0,
@@ -102,15 +119,16 @@ const FuelReport: React.FC = () => {
     totalRecords: 0,
     progress: 0,
   })
+  const [tableLoading, setTableLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRecords, setSelectedRecords] = useState<number[]>([])
   const { toast } = useToast()
 
-  const itemsPerPage = 25
-  const API_URL = "https://palmconnect.co/telematry/fuel-data/"
+  const API_URL = "https://palmconnect.co/telematry/fuel-data"
   const API_TOKEN = localStorage.getItem("authToken")
 
-  const fetchFuelData = async () => {
+  // Fetch chart data (all data for the chart)
+  const fetchChartData = async () => {
     try {
       setLoadingState({
         isLoading: true,
@@ -135,7 +153,7 @@ const FuelReport: React.FC = () => {
         throw new Error(`HTTP error! status: ${firstResponse.status}`)
       }
 
-      const firstData: ApiResponse & { pagination: any } = await firstResponse.json()
+      const firstData: ApiResponse = await firstResponse.json()
 
       if (!firstData.sensor_data || !Array.isArray(firstData.sensor_data)) {
         throw new Error("Invalid data format received from API")
@@ -146,7 +164,6 @@ const FuelReport: React.FC = () => {
 
       // Show first page data immediately
       setSensorData(firstData.sensor_data)
-      setFilteredData(firstData.sensor_data)
       if (firstData.sensor_data.length > 0) {
         setSelectedChartVehicle((prev) => prev || firstData.sensor_data[0].vehicle_name)
       }
@@ -160,7 +177,7 @@ const FuelReport: React.FC = () => {
         progress: totalPages > 1 ? (1 / totalPages) * 100 : 100,
       })
 
-      // If there are more pages, load them progressively
+      // If there are more pages, load them progressively for the chart data
       if (totalPages > 1) {
         const batchSize = 3 // Smaller batches for more frequent updates
         const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
@@ -191,17 +208,6 @@ const FuelReport: React.FC = () => {
             return newData
           })
 
-          // Update filtered data if no filters are applied
-          setFilteredData((prevFiltered) => {
-            const newFiltered = [...prevFiltered]
-            batchResults.forEach((data: ApiResponse) => {
-              if (data.sensor_data && Array.isArray(data.sensor_data)) {
-                newFiltered.push(...data.sensor_data)
-              }
-            })
-            return newFiltered
-          })
-
           // Update loading state
           const loadedPages = 1 + i + batch.length
           const newLoadedRecords =
@@ -223,8 +229,8 @@ const FuelReport: React.FC = () => {
         }
 
         toast({
-          title: "Data Loading Complete",
-          description: `Successfully loaded all ${totalRecords} fuel records.`,
+          title: "Chart Data Loading Complete",
+          description: `Successfully loaded all ${totalRecords} fuel records for the chart.`,
         })
       }
     } catch (err: any) {
@@ -235,12 +241,64 @@ const FuelReport: React.FC = () => {
     }
   }
 
+  // Fetch table data (paginated)
+  const fetchTableData = async (page: number) => {
+    try {
+      setTableLoading(true)
+      setError(null)
+
+      const response = await fetch(`${API_URL}?page=${page}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Token ${API_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      const data: ApiResponse = await response.json()
+
+      if (!data.sensor_data || !Array.isArray(data.sensor_data)) {
+        throw new Error("Invalid data format received from API")
+      }
+
+      // Update table data
+      setTableData(data.sensor_data)
+      setFilteredData(data.sensor_data)
+
+      // Update pagination state
+      if (data.pagination) {
+        setPaginationState({
+          currentPage: data.pagination.current_page,
+          totalPages: data.pagination.total_pages,
+          totalItems: data.pagination.total_items,
+          pageSize: data.pagination.page_size,
+          hasNext: data.pagination.has_next,
+          hasPrevious: data.pagination.has_previous,
+        })
+      }
+
+      setSelectedRecords([]) // Clear selected records when changing pages
+    } catch (err: any) {
+      console.error("Error fetching table data:", err)
+      setError(err.message || "Failed to fetch table data")
+      toast({ title: "Error", description: "Failed to fetch table data. Please try again.", variant: "destructive" })
+    } finally {
+      setTableLoading(false)
+    }
+  }
+
+  // Initial data fetch
   useEffect(() => {
-    fetchFuelData()
+    fetchChartData()
+    fetchTableData(1)
   }, [])
 
   const handleFilter = () => {
-    let filtered = sensorData
+    let filtered = tableData
 
     // Vehicle filter
     if (selectedVehicle !== "all") {
@@ -268,15 +326,13 @@ const FuelReport: React.FC = () => {
     filtered = filtered.filter((d) => new Date(d.timestamp) >= startTime)
 
     setFilteredData(filtered)
-    setCurrentPage(1)
     setSelectedRecords([])
   }
 
   const clearFilters = () => {
     setSelectedVehicle("all")
     setDateFilter("day")
-    setFilteredData(sensorData)
-    setCurrentPage(1)
+    setFilteredData(tableData)
     setSelectedRecords([])
   }
 
@@ -285,7 +341,7 @@ const FuelReport: React.FC = () => {
   }
 
   const toggleSelectAllPage = (checked: boolean) => {
-    const ids = currentData.map((d) => d.id)
+    const ids = filteredData.map((d) => d.id)
     setSelectedRecords((prev) =>
       checked ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)),
     )
@@ -457,15 +513,13 @@ const FuelReport: React.FC = () => {
   const isLowFuel = currentLevel <= 15
   const trend = currentLevel > prevLevel ? "up" : "down"
 
-  // Pagination
-  const totalCount = filteredData.length
-  const totalPages = Math.ceil(totalCount / itemsPerPage)
-  const startIndex = (currentPage - 1) * itemsPerPage
-  const endIndex = Math.min(startIndex + itemsPerPage, totalCount)
-  const currentData = filteredData.slice(startIndex, endIndex)
-
   const availableVehicles = Array.from(new Set(sensorData.map((d) => d.vehicle_name)))
-  const allCurrentPageSelected = currentData.length > 0 && currentData.every((d) => selectedRecords.includes(d.id))
+  const allCurrentPageSelected = filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.id))
+
+  // Handle page change
+  const handlePageChange = (page: number) => {
+    fetchTableData(page)
+  }
 
   if (sensorData.length === 0 && loadingState.isLoading) {
     return (
@@ -498,7 +552,7 @@ const FuelReport: React.FC = () => {
               </CardHeader>
               <CardContent className="text-center space-y-4">
                 <p>{error}</p>
-                <Button onClick={fetchFuelData}>Try Again</Button>
+                <Button onClick={fetchChartData}>Try Again</Button>
               </CardContent>
             </Card>
           </main>
@@ -521,14 +575,28 @@ const FuelReport: React.FC = () => {
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
             </div>
-            <Button onClick={fetchFuelData} variant="outline" disabled={loadingState.isLoading}>
-              {loadingState.isLoading ? (
-                <Loader2 className="h-4 w-4 animate-spin mr-2" />
-              ) : (
-                <RefreshCw className="h-4 w-4 mr-2" />
-              )}
-              Refresh Data
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={fetchChartData} variant="outline" disabled={loadingState.isLoading}>
+                {loadingState.isLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh Chart Data
+              </Button>
+              <Button
+                onClick={() => fetchTableData(paginationState.currentPage)}
+                variant="outline"
+                disabled={tableLoading}
+              >
+                {tableLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Refresh Table Data
+              </Button>
+            </div>
           </div>
 
           {/* Loading Progress */}
@@ -537,7 +605,7 @@ const FuelReport: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading Data...
+                  Loading Chart Data...
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -553,7 +621,7 @@ const FuelReport: React.FC = () => {
                   <Progress value={loadingState.progress} className="w-full" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  You can view and filter the data below while more records are being loaded in the background.
+                  You can view and filter the data below while more records are being loaded for the chart.
                 </p>
               </CardContent>
             </Card>
@@ -774,12 +842,9 @@ const FuelReport: React.FC = () => {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>
-                  Fuel Data (Showing {startIndex + 1}-{endIndex} of {totalCount} Records)
-                  {loadingState.isLoading && (
-                    <span className="text-sm font-normal text-orange-600 ml-2">
-                      (Loading more data... {loadingState.loadedRecords}/{loadingState.totalRecords})
-                    </span>
-                  )}
+                  Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
+                  {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
+                  {tableLoading && <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
@@ -787,73 +852,83 @@ const FuelReport: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[600px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={allCurrentPageSelected}
-                          onCheckedChange={toggleSelectAllPage}
-                          aria-label="Select all on page"
-                        />
-                      </TableHead>
-                      <TableHead>Vehicle</TableHead>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>Fuel Level</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Speed</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {currentData.map((data) => (
-                      <TableRow key={data.id} className="hover:bg-muted/50">
-                        <TableCell>
+              {tableLoading ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                    <p className="mt-4 text-muted-foreground">Loading table data...</p>
+                  </div>
+                </div>
+              ) : (
+                <ScrollArea className="h-[600px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">
                           <Checkbox
-                            checked={selectedRecords.includes(data.id)}
-                            onCheckedChange={(checked) => handleRecordSelection(data.id, checked as boolean)}
-                            aria-label={`Select record ${data.id}`}
+                            checked={allCurrentPageSelected}
+                            onCheckedChange={toggleSelectAllPage}
+                            aria-label="Select all on page"
                           />
-                        </TableCell>
-                        <TableCell className="font-medium">{data.vehicle_name}</TableCell>
-                        <TableCell className="font-mono text-xs">{data.timestamp_display}</TableCell>
-                        <TableCell
-                          className={
-                            Number.parseFloat(data.fuel_level.replace(/L/i, "")) <= 15
-                              ? "text-red-600 font-semibold"
-                              : ""
-                          }
-                        >
-                          {data.fuel_level}
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">{data.location}</TableCell>
-                        <TableCell>{data.speed} km/h</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
-                              {data.ignition ? "ON" : "OFF"}
-                            </Badge>
-                            {data.movement && (
-                              <Badge variant="outline" className="text-xs">
-                                MOVING
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{data.notes}</TableCell>
+                        </TableHead>
+                        <TableHead>Vehicle</TableHead>
+                        <TableHead>Timestamp</TableHead>
+                        <TableHead>Fuel Level</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Speed</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Notes</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredData.map((data) => (
+                        <TableRow key={data.id} className="hover:bg-muted/50">
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedRecords.includes(data.id)}
+                              onCheckedChange={(checked) => handleRecordSelection(data.id, checked as boolean)}
+                              aria-label={`Select record ${data.id}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{data.vehicle_name}</TableCell>
+                          <TableCell className="font-mono text-xs">{data.timestamp_display}</TableCell>
+                          <TableCell
+                            className={
+                              Number.parseFloat(data.fuel_level.replace(/L/i, "")) <= 15
+                                ? "text-red-600 font-semibold"
+                                : ""
+                            }
+                          >
+                            {data.fuel_level}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">{data.location}</TableCell>
+                          <TableCell>{data.speed} km/h</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                                {data.ignition ? "ON" : "OFF"}
+                              </Badge>
+                              {data.movement && (
+                                <Badge variant="outline" className="text-xs">
+                                  MOVING
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{data.notes}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              )}
 
-              {/* Improved Pagination */}
-              {totalPages > 1 && (
+              {/* API-based Pagination */}
+              {paginationState.totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
-                    Page {currentPage} of {totalPages} ({totalCount} total records)
+                    Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}
+                    total records)
                   </div>
                   <Pagination>
                     <PaginationContent>
@@ -862,43 +937,44 @@ const FuelReport: React.FC = () => {
                           href="#"
                           onClick={(e) => {
                             e.preventDefault()
-                            if (currentPage > 1) setCurrentPage(currentPage - 1)
+                            if (paginationState.hasPrevious) handlePageChange(paginationState.currentPage - 1)
                           }}
-                          className={currentPage === 1 ? "pointer-events-none opacity-50" : ""}
+                          className={!paginationState.hasPrevious ? "pointer-events-none opacity-50" : ""}
                         />
                       </PaginationItem>
 
                       {/* Show first page */}
-                      {currentPage > 3 && (
+                      {paginationState.currentPage > 3 && (
                         <>
                           <PaginationItem>
                             <PaginationLink
                               href="#"
                               onClick={(e) => {
                                 e.preventDefault()
-                                setCurrentPage(1)
+                                handlePageChange(1)
                               }}
                             >
                               1
                             </PaginationLink>
                           </PaginationItem>
-                          {currentPage > 4 && <span className="px-2">...</span>}
+                          {paginationState.currentPage > 4 && <span className="px-2">...</span>}
                         </>
                       )}
 
                       {/* Show pages around current page */}
-                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                        const pageNum = Math.max(1, Math.min(totalPages - 4, currentPage - 2)) + i
-                        if (pageNum <= totalPages) {
+                      {Array.from({ length: Math.min(5, paginationState.totalPages) }, (_, i) => {
+                        const pageNum =
+                          Math.max(1, Math.min(paginationState.totalPages - 4, paginationState.currentPage - 2)) + i
+                        if (pageNum <= paginationState.totalPages) {
                           return (
                             <PaginationItem key={pageNum}>
                               <PaginationLink
                                 href="#"
                                 onClick={(e) => {
                                   e.preventDefault()
-                                  setCurrentPage(pageNum)
+                                  handlePageChange(pageNum)
                                 }}
-                                isActive={pageNum === currentPage}
+                                isActive={pageNum === paginationState.currentPage}
                               >
                                 {pageNum}
                               </PaginationLink>
@@ -909,18 +985,20 @@ const FuelReport: React.FC = () => {
                       })}
 
                       {/* Show last page */}
-                      {currentPage < totalPages - 2 && (
+                      {paginationState.currentPage < paginationState.totalPages - 2 && (
                         <>
-                          {currentPage < totalPages - 3 && <span className="px-2">...</span>}
+                          {paginationState.currentPage < paginationState.totalPages - 3 && (
+                            <span className="px-2">...</span>
+                          )}
                           <PaginationItem>
                             <PaginationLink
                               href="#"
                               onClick={(e) => {
                                 e.preventDefault()
-                                setCurrentPage(totalPages)
+                                handlePageChange(paginationState.totalPages)
                               }}
                             >
-                              {totalPages}
+                              {paginationState.totalPages}
                             </PaginationLink>
                           </PaginationItem>
                         </>
@@ -931,9 +1009,9 @@ const FuelReport: React.FC = () => {
                           href="#"
                           onClick={(e) => {
                             e.preventDefault()
-                            if (currentPage < totalPages) setCurrentPage(currentPage + 1)
+                            if (paginationState.hasNext) handlePageChange(paginationState.currentPage + 1)
                           }}
-                          className={currentPage === totalPages ? "pointer-events-none opacity-50" : ""}
+                          className={!paginationState.hasNext ? "pointer-events-none opacity-50" : ""}
                         />
                       </PaginationItem>
                     </PaginationContent>
@@ -952,7 +1030,7 @@ const FuelReport: React.FC = () => {
                   <Download className="h-4 w-4" /> Download Selected ({selectedRecords.length})
                 </Button>
                 <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2">
-                  <Download className="h-4 w-4" /> Download All Records
+                  <Download className="h-4 w-4" /> Download Current Page
                 </Button>
               </div>
             </CardContent>

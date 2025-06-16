@@ -4,61 +4,14 @@ import { Badge } from "@/components/ui/badge";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Fuel, ShieldAlert, Car, AlertTriangle } from 'lucide-react';
-import axios from "axios";
 import api from "@/lib/api";
 
 // Define types for API responses
-interface FuelData {
-  id: number;
-  vehicle: number;
-  vehicle_name: string;
-  timestamp: string;
-  timestamp_display: string;
-  fuel_level: string;
-  location: string;
-  speed: number;
-  notes: string;
-  latitude: string;
-  longitude: string;
-  altitude: null | number;
-  satellites: number;
-  ignition: boolean;
-  movement: boolean;
-}
-
-interface FuelEvent {
-  id: number;
-  vehicle: number;
-  vehicle_name: string;
-  event_type: string;
-  event_display: string;
-  event_icon: string;
-  timestamp: string;
-  timestamp_display: string;
-  previous_level: string;
-  current_level: string;
-  change_amount: string;
-  fuel_change: {
-    text: string;
-    color: string;
-    details: string;
-  };
-  location_latitude: string;
-  location_longitude: string;
-  location: string;
-  severity: string;
-  notes: string;
-  created_at: string;
-}
-
-interface VehicleData {
+interface Vehicle {
   id: number;
   name: string;
   imei: string;
-  imei_display: string;
   type: string;
-  driver: string;
-  status: string;
   license_plate: string;
   fuel_capacity: string;
   is_active: boolean;
@@ -68,14 +21,55 @@ interface VehicleData {
 }
 
 interface FleetResponse {
-  fleet_overview: VehicleData[];
-  total_vehicles: number;
-  active_vehicles: number;
-  company: {
-    id: string;
+  fleet_overview: Vehicle[];
+}
+
+interface FuelEvent {
+  id: string;
+  event_type: string;
+  vehicle: {
+    license_plate: string;
     name: string;
-    country: string;
   };
+  timestamp: string;
+  location: {
+    latitude: number;
+    longitude: number;
+  };
+  fuel_change: {
+    amount_liters: number;
+    before_liters: number;
+    after_liters: number;
+  };
+  vehicle_state: {
+    speed: number;
+    ignition: boolean;
+    stationary: boolean;
+  };
+}
+
+interface FuelEventsResponse {
+  summary: {
+    period: {
+      start: string;
+      end: string;
+      days: number;
+    };
+    fill_events: {
+      count: number;
+      total_liters: number;
+      vehicles_affected: number;
+      average_fill_liters: number;
+    };
+    theft_events: {
+      count: number;
+      total_liters: number;
+      vehicles_affected: number;
+      average_theft_liters: number;
+    };
+    total_events: number;
+  };
+  events: FuelEvent[];
 }
 
 // Loading skeleton component for better UX
@@ -93,48 +87,49 @@ const MetricCardSkeleton = () => (
 );
 
 const Index = () => {
-  const [fuelData, setFuelData] = useState<FuelData[]>([]);
-  const [fuelEvents, setFuelEvents] = useState<FuelEvent[]>([]);
-  const [vehicles, setVehicles] = useState<VehicleData[]>([]);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [fuelEvents, setFuelEvents] = useState<FuelEventsResponse | null>(null);
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentData, setCurrentData] = useState<FuelData | null>(null);
 
   // Memoize theft metrics calculation to avoid recalculation on every render
-  const fuelTheftData = useMemo(() => {
-    if (!fuelEvents.length || !vehicles.length) {
+  const dashboardMetrics = useMemo(() => {
+    if (!vehicles.length || !fuelEvents) {
       return {
         totalVehicles: 0,
+        activeVehicles: 0,
         monthlyTheftCount: 0,
         totalFuelStolen: 0,
         highRiskVehicles: []
       };
     }
 
-    const theftEvents = fuelEvents.filter(event => 
-      event.event_type === 'theft' || event.event_type === 'rapid_drop'
-    );
+    const activeVehicles = vehicles.filter(v => v.is_active).length;
+    const theftEvents = fuelEvents.events.filter(event => event.event_type === 'theft');
     
-    const totalFuelStolen = theftEvents.reduce((total, event) => {
-      const amount = parseFloat(event.change_amount);
-      return total + (isNaN(amount) ? 0 : Math.abs(amount));
-    }, 0);
+    const totalFuelStolen = fuelEvents.summary.theft_events.total_liters;
     
-    const highRiskVehicles = vehicles
-      .filter(vehicle => {
-        const vehicleThefts = theftEvents.filter(event => event.vehicle === vehicle.id);
-        return vehicleThefts.length > 0;
-      })
-      .map(vehicle => {
-        const vehicleThefts = theftEvents.filter(event => event.vehicle === vehicle.id);
-        const lastTheft = vehicleThefts.length > 0 ? 
-          vehicleThefts.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].timestamp : '';
+    // Create high risk vehicles based on theft events
+    const vehicleTheftMap = new Map<string, number>();
+    theftEvents.forEach(event => {
+      const plate = event.vehicle.license_plate;
+      vehicleTheftMap.set(plate, (vehicleTheftMap.get(plate) || 0) + 1);
+    });
+    
+    const highRiskVehicles = Array.from(vehicleTheftMap.entries())
+      .map(([plate, theftCount]) => {
+        const vehicle = vehicles.find(v => v.license_plate === plate);
+        const lastTheft = theftEvents
+          .filter(e => e.vehicle.license_plate === plate)
+          .sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
         
         return {
-          name: vehicle.name,
-          riskScore: Math.floor(Math.random() * 30) + 70, // Simulated risk score between 70-100
-          lastTheft: lastTheft
+          name: vehicle?.name || plate,
+          license_plate: plate,
+          riskScore: Math.min(100, 50 + (theftCount * 15)), // Base 50 + 15 per theft
+          lastTheft: lastTheft?.timestamp || '',
+          theftCount
         };
       })
       .sort((a, b) => b.riskScore - a.riskScore)
@@ -142,11 +137,12 @@ const Index = () => {
     
     return {
       totalVehicles: vehicles.length,
-      monthlyTheftCount: theftEvents.length,
-      totalFuelStolen: totalFuelStolen,
-      highRiskVehicles: highRiskVehicles
+      activeVehicles,
+      monthlyTheftCount: fuelEvents.summary.theft_events.count,
+      totalFuelStolen,
+      highRiskVehicles
     };
-  }, [fuelEvents, vehicles]);
+  }, [vehicles, fuelEvents]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -154,27 +150,36 @@ const Index = () => {
         setLoading(true);
         setError(null);
         
-        // Make all API calls concurrently instead of sequentially
-        const [fuelResponse, vehiclesResponse, eventsResponse] = await Promise.all([
-          api.get('/fuel-data/'),
-          api.get('/vehicles/'),
-          api.get('/fuel-events/')
-        ]);
+        // Fetch vehicles first
+        const vehiclesResponse = await api.get('/vehicles/');
+        const vehiclesData = vehiclesResponse.data.fleet_overview || [];
+        setVehicles(vehiclesData);
         
-        // Process responses
-        setFuelData(fuelResponse.data.sensor_data || []);
-        setVehicles(vehiclesResponse.data.fleet_overview || []);
-        setFuelEvents(eventsResponse.data.fuel_events || []);
-        
-        // Set current data if available
-        if (fuelResponse.data.sensor_data?.length > 0) {
-          setCurrentData(fuelResponse.data.sensor_data[0]);
+        // If we have vehicles, fetch fuel events for the first vehicle as sample
+        if (vehiclesData.length > 0) {
+          const firstVehicle = vehiclesData[0];
+          try {
+            const eventsResponse = await api.get(`/fuel-events?license_plate=${firstVehicle.license_plate}&event_type=all`);
+            setFuelEvents(eventsResponse.data);
+          } catch (eventsError) {
+            console.warn('Could not fetch fuel events:', eventsError);
+            // Set empty events data to prevent crashes
+            setFuelEvents({
+              summary: {
+                period: { start: '', end: '', days: 0 },
+                fill_events: { count: 0, total_liters: 0, vehicles_affected: 0, average_fill_liters: 0 },
+                theft_events: { count: 0, total_liters: 0, vehicles_affected: 0, average_theft_liters: 0 },
+                total_events: 0
+              },
+              events: []
+            });
+          }
         }
+        
         const stored = localStorage.getItem('userFname');
         if (stored) {
           setEmail(stored);
         }
-
         
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -227,20 +232,20 @@ const Index = () => {
                         <Car className="h-4 w-4 text-muted-foreground" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold">{fuelTheftData.totalVehicles}</div>
+                        <div className="text-2xl font-bold">{dashboardMetrics.totalVehicles}</div>
                         <p className="text-xs text-muted-foreground">
-                          Fleet size
+                          {dashboardMetrics.activeVehicles} active
                         </p>
                       </CardContent>
                     </Card>
 
                     <Card className="hover:shadow-lg transition-shadow">
                       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Fuel Theft This Month</CardTitle>
+                        <CardTitle className="text-sm font-medium">Fuel Theft This Period</CardTitle>
                         <ShieldAlert className="h-4 w-4 text-destructive" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold text-destructive">{fuelTheftData.monthlyTheftCount}</div>
+                        <div className="text-2xl font-bold text-destructive">{dashboardMetrics.monthlyTheftCount}</div>
                         <p className="text-xs text-muted-foreground">
                           Detected incidents
                         </p>
@@ -253,9 +258,9 @@ const Index = () => {
                         <Fuel className="h-4 w-4 text-destructive" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold text-destructive">{fuelTheftData.totalFuelStolen.toFixed(1)}L</div>
+                        <div className="text-2xl font-bold text-destructive">{dashboardMetrics.totalFuelStolen.toFixed(1)}L</div>
                         <p className="text-xs text-muted-foreground">
-                          This month
+                          This period
                         </p>
                       </CardContent>
                     </Card>
@@ -266,7 +271,7 @@ const Index = () => {
                         <AlertTriangle className="h-4 w-4 text-orange-500" />
                       </CardHeader>
                       <CardContent>
-                        <div className="text-2xl font-bold text-orange-500">{fuelTheftData.highRiskVehicles.length}</div>
+                        <div className="text-2xl font-bold text-orange-500">{dashboardMetrics.highRiskVehicles.length}</div>
                         <p className="text-xs text-muted-foreground">
                           Require attention
                         </p>
@@ -295,7 +300,7 @@ const Index = () => {
               )}
 
               {/* High Risk Vehicles Card */}
-              {!loading && !error && fuelTheftData.highRiskVehicles.length > 0 && (
+              {!loading && !error && dashboardMetrics.highRiskVehicles.length > 0 && (
                 <Card className="mb-8">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -308,17 +313,23 @@ const Index = () => {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {fuelTheftData.highRiskVehicles.map((vehicle, index) => (
+                      {dashboardMetrics.highRiskVehicles.map((vehicle, index) => (
                         <div key={index} className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                           <div>
                             <h4 className="font-semibold">{vehicle.name}</h4>
                             <p className="text-sm text-muted-foreground">
-                              Last theft detected: {new Date(vehicle.lastTheft).toLocaleDateString()}
+                              License: {vehicle.license_plate}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {vehicle.lastTheft ? `Last theft: ${new Date(vehicle.lastTheft).toLocaleDateString()}` : 'No recent theft'}
                             </p>
                           </div>
                           <div className="text-right">
                             <div className="text-lg font-bold text-destructive">{vehicle.riskScore}%</div>
                             <p className="text-xs text-muted-foreground">Risk Score</p>
+                            <Badge variant="destructive" className="text-xs">
+                              {vehicle.theftCount} theft{vehicle.theftCount !== 1 ? 's' : ''}
+                            </Badge>
                           </div>
                         </div>
                       ))}

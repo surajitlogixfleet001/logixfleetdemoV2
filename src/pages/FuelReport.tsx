@@ -35,35 +35,55 @@ import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2
 import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
+import api from "@/lib/api"
+import { Input } from "@/components/ui/input"
 
-interface SensorData {
+interface Vehicle {
   id: number
-  vehicle: number
-  vehicle_name: string
-  timestamp: string
-  timestamp_display: string
-  fuel_level: string
-  location: string
-  speed: number
+  name: string
+  imei: string
+  type: string
+  license_plate: string
+  fuel_capacity: string
+  is_active: boolean
+  driver_name: string
+  driver_phone: string
   notes: string
-  latitude: string
-  longitude: string
-  altitude: string | null
-  satellites: number
-  ignition: boolean
-  movement: boolean
 }
 
-interface ApiResponse {
-  sensor_data: SensorData[]
-  pagination?: {
-    current_page: number
-    total_pages: number
-    total_items: number
+interface FuelRecord {
+  timestamp: string
+  fuel_liters: number
+  odometer: number
+  latitude: number
+  longitude: number
+  speed: number
+  ignition: boolean
+  movement: boolean
+  satellites: number
+  external_voltage: number
+  engine_hours: number
+}
+
+interface FuelDataResponse {
+  vehicle: {
+    license_plate: string
+    name: string
+    imei: string
+  }
+  filters: {
+    start_date: string | null
+    end_date: string | null
+  }
+  pagination: {
+    page: number
     page_size: number
+    total_records: number
+    total_pages: number
     has_next: boolean
     has_previous: boolean
   }
+  fuel_records: FuelRecord[]
 }
 
 type TimePeriod = "day" | "week"
@@ -96,9 +116,10 @@ interface PaginationState {
 }
 
 const FuelReport: React.FC = () => {
-  const [sensorData, setSensorData] = useState<SensorData[]>([])
-  const [tableData, setTableData] = useState<SensorData[]>([])
-  const [filteredData, setFilteredData] = useState<SensorData[]>([])
+  const [vehicles, setVehicles] = useState<Vehicle[]>([])
+  const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([])
+  const [tableData, setTableData] = useState<FuelRecord[]>([])
+  const [filteredData, setFilteredData] = useState<FuelRecord[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all")
   const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("")
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
@@ -121,14 +142,34 @@ const FuelReport: React.FC = () => {
   })
   const [tableLoading, setTableLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedRecords, setSelectedRecords] = useState<number[]>([])
+  const [selectedRecords, setSelectedRecords] = useState<string[]>([])
   const { toast } = useToast()
 
-  const API_URL = "https://palmconnect.co/telematry/fuel-data"
-  const API_TOKEN = localStorage.getItem("authToken")
+  // Add these state variables after the existing state declarations
+  const [startDate, setStartDate] = useState("")
+  const [endDate, setEndDate] = useState("")
+  const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
+  const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
+  const [filterByIMEI, setFilterByIMEI] = useState("")
+
+  // Fetch vehicles
+  const fetchVehicles = async () => {
+    try {
+      const response = await api.get("/vehicles/")
+      const vehiclesData = response.data.fleet_overview || []
+      setVehicles(vehiclesData)
+
+      // Remove the auto-selection logic
+    } catch (err: any) {
+      console.error("Error fetching vehicles:", err)
+      setError("Failed to fetch vehicles data")
+    }
+  }
 
   // Fetch chart data (all data for the chart)
   const fetchChartData = async () => {
+    if (!selectedChartVehicle) return
+
     try {
       setLoadingState({
         isLoading: true,
@@ -141,68 +182,48 @@ const FuelReport: React.FC = () => {
       setError(null)
 
       // First, get the first page to know total pages and show initial data
-      const firstResponse = await fetch(`${API_URL}?page=1`, {
-        method: "GET",
-        headers: {
-          Authorization: `Token ${API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      })
+      const firstResponse = await api.get(`/fuel-data?license_plate=${selectedChartVehicle}&page=1`)
+      const firstData: FuelDataResponse = firstResponse.data
 
-      if (!firstResponse.ok) {
-        throw new Error(`HTTP error! status: ${firstResponse.status}`)
-      }
-
-      const firstData: ApiResponse = await firstResponse.json()
-
-      if (!firstData.sensor_data || !Array.isArray(firstData.sensor_data)) {
+      if (!firstData.fuel_records || !Array.isArray(firstData.fuel_records)) {
         throw new Error("Invalid data format received from API")
       }
 
       const totalPages = firstData.pagination?.total_pages || 1
-      const totalRecords = firstData.pagination?.total_items || firstData.sensor_data.length
+      const totalRecords = firstData.pagination?.total_records || firstData.fuel_records.length
 
       // Show first page data immediately
-      setSensorData(firstData.sensor_data)
-      if (firstData.sensor_data.length > 0) {
-        setSelectedChartVehicle((prev) => prev || firstData.sensor_data[0].vehicle_name)
-      }
+      setFuelRecords(firstData.fuel_records)
 
       setLoadingState({
         isLoading: totalPages > 1,
         currentPage: 1,
         totalPages,
-        loadedRecords: firstData.sensor_data.length,
+        loadedRecords: firstData.fuel_records.length,
         totalRecords,
         progress: totalPages > 1 ? (1 / totalPages) * 100 : 100,
       })
 
       // If there are more pages, load them progressively for the chart data
       if (totalPages > 1) {
-        const batchSize = 3 // Smaller batches for more frequent updates
+        const batchSize = 3
         const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
 
         for (let i = 0; i < remainingPages.length; i += batchSize) {
           const batch = remainingPages.slice(i, i + batchSize)
 
           const batchPromises = batch.map((page) =>
-            fetch(`${API_URL}?page=${page}`, {
-              method: "GET",
-              headers: {
-                Authorization: `Token ${API_TOKEN}`,
-                "Content-Type": "application/json",
-              },
-            }).then((res) => res.json()),
+            api.get(`/fuel-data?license_plate=${selectedChartVehicle}&page=${page}`).then((res) => res.data),
           )
 
           const batchResults = await Promise.all(batchPromises)
 
           // Update data progressively
-          setSensorData((prevData) => {
+          setFuelRecords((prevData) => {
             const newData = [...prevData]
-            batchResults.forEach((data: ApiResponse) => {
-              if (data.sensor_data && Array.isArray(data.sensor_data)) {
-                newData.push(...data.sensor_data)
+            batchResults.forEach((data: FuelDataResponse) => {
+              if (data.fuel_records && Array.isArray(data.fuel_records)) {
+                newData.push(...data.fuel_records)
               }
             })
             return newData
@@ -211,7 +232,8 @@ const FuelReport: React.FC = () => {
           // Update loading state
           const loadedPages = 1 + i + batch.length
           const newLoadedRecords =
-            firstData.sensor_data.length + batchResults.reduce((sum, data) => sum + (data.sensor_data?.length || 0), 0)
+            firstData.fuel_records.length +
+            batchResults.reduce((sum, data) => sum + (data.fuel_records?.length || 0), 0)
 
           setLoadingState({
             isLoading: loadedPages < totalPages,
@@ -243,38 +265,29 @@ const FuelReport: React.FC = () => {
 
   // Fetch table data (paginated)
   const fetchTableData = async (page: number) => {
+    if (!selectedChartVehicle) return
+
     try {
       setTableLoading(true)
       setError(null)
 
-      const response = await fetch(`${API_URL}?page=${page}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Token ${API_TOKEN}`,
-          "Content-Type": "application/json",
-        },
-      })
+      const response = await api.get(`/fuel-data?license_plate=${selectedChartVehicle}&page=${page}`)
+      const data: FuelDataResponse = response.data
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`)
-      }
-
-      const data: ApiResponse = await response.json()
-
-      if (!data.sensor_data || !Array.isArray(data.sensor_data)) {
+      if (!data.fuel_records || !Array.isArray(data.fuel_records)) {
         throw new Error("Invalid data format received from API")
       }
 
       // Update table data
-      setTableData(data.sensor_data)
-      setFilteredData(data.sensor_data)
+      setTableData(data.fuel_records)
+      setFilteredData(data.fuel_records)
 
       // Update pagination state
       if (data.pagination) {
         setPaginationState({
-          currentPage: data.pagination.current_page,
+          currentPage: data.pagination.page,
           totalPages: data.pagination.total_pages,
-          totalItems: data.pagination.total_items,
+          totalItems: data.pagination.total_records,
           pageSize: data.pagination.page_size,
           hasNext: data.pagination.has_next,
           hasPrevious: data.pagination.has_previous,
@@ -293,17 +306,18 @@ const FuelReport: React.FC = () => {
 
   // Initial data fetch
   useEffect(() => {
-    fetchChartData()
-    fetchTableData(1)
+    fetchVehicles()
   }, [])
+
+  useEffect(() => {
+    if (selectedChartVehicle) {
+      fetchChartData()
+      fetchTableData(1)
+    }
+  }, [selectedChartVehicle])
 
   const handleFilter = () => {
     let filtered = tableData
-
-    // Vehicle filter
-    if (selectedVehicle !== "all") {
-      filtered = filtered.filter((d) => d.vehicle_name === selectedVehicle)
-    }
 
     // Date filter based on selection
     const now = new Date()
@@ -330,25 +344,31 @@ const FuelReport: React.FC = () => {
   }
 
   const clearFilters = () => {
-    setSelectedVehicle("all")
     setDateFilter("day")
+    setStartDate("")
+    setEndDate("")
+    setReportPeriod("daily")
+    setFilterByLicensePlate("")
+    setFilterByIMEI("")
     setFilteredData(tableData)
     setSelectedRecords([])
   }
 
-  const handleRecordSelection = (recordId: number, checked: boolean) => {
+  const handleRecordSelection = (recordId: string, checked: boolean) => {
     setSelectedRecords((prev) => (checked ? [...prev, recordId] : prev.filter((id) => id !== recordId)))
   }
 
   const toggleSelectAllPage = (checked: boolean) => {
-    const ids = filteredData.map((d) => d.id)
+    const ids = filteredData.map((d) => d.timestamp)
     setSelectedRecords((prev) =>
       checked ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)),
     )
   }
 
   const downloadCSV = (downloadAll = false) => {
-    const dataToDownload = downloadAll ? filteredData : filteredData.filter((d) => selectedRecords.includes(d.id))
+    const dataToDownload = downloadAll
+      ? filteredData
+      : filteredData.filter((d) => selectedRecords.includes(d.timestamp))
     if (!downloadAll && dataToDownload.length === 0) {
       toast({
         title: "No records selected",
@@ -358,30 +378,32 @@ const FuelReport: React.FC = () => {
       return
     }
     const headers = [
-      "ID",
-      "Vehicle",
       "Timestamp",
-      "Fuel Level",
-      "Location",
+      "Fuel Level (L)",
+      "Odometer",
+      "Latitude",
+      "Longitude",
       "Speed (km/h)",
-      "Satellites",
       "Ignition",
       "Movement",
-      "Notes",
+      "Satellites",
+      "External Voltage",
+      "Engine Hours",
     ]
     const csvRows = [headers.join(",")]
     dataToDownload.forEach((d) => {
       const row = [
-        d.id,
-        `"${d.vehicle_name}"`,
         d.timestamp,
-        d.fuel_level,
-        `"${d.location}"`,
+        d.fuel_liters,
+        d.odometer,
+        d.latitude,
+        d.longitude,
         d.speed,
-        d.satellites,
         d.ignition ? "Yes" : "No",
         d.movement ? "Yes" : "No",
-        `"${d.notes || ""}"`,
+        d.satellites,
+        d.external_voltage,
+        d.engine_hours,
       ].join(",")
       csvRows.push(row)
     })
@@ -400,7 +422,7 @@ const FuelReport: React.FC = () => {
   }
 
   // Enhanced chart data processing with proper aggregation
-  const getChartDataForVehicle = (vehicleName: string, period: TimePeriod): ChartDataPoint[] => {
+  const getChartDataForVehicle = (period: TimePeriod): ChartDataPoint[] => {
     const now = new Date()
     let startTime: Date
 
@@ -415,8 +437,8 @@ const FuelReport: React.FC = () => {
         startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     }
 
-    const filteredData = sensorData
-      .filter((d) => d.vehicle_name === vehicleName && new Date(d.timestamp) >= startTime)
+    const filteredData = fuelRecords
+      .filter((d) => new Date(d.timestamp) >= startTime)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
     if (period === "day") {
@@ -436,7 +458,7 @@ const FuelReport: React.FC = () => {
           return hour >= slot.start && hour < slot.end
         })
 
-        const levels = slotData.map((d) => Number.parseFloat(d.fuel_level.replace(/L/i, "")) || 0)
+        const levels = slotData.map((d) => d.fuel_liters || 0)
         const avgLevel = levels.length > 0 ? levels.reduce((sum, level) => sum + level, 0) / levels.length : 0
 
         return {
@@ -464,7 +486,7 @@ const FuelReport: React.FC = () => {
           return timestamp >= dayStart && timestamp < dayEnd
         })
 
-        const levels = dayData.map((d) => Number.parseFloat(d.fuel_level.replace(/L/i, "")) || 0)
+        const levels = dayData.map((d) => d.fuel_liters || 0)
         const avgLevel = levels.length > 0 ? levels.reduce((sum, level) => sum + level, 0) / levels.length : 0
 
         weekData.push({
@@ -501,7 +523,7 @@ const FuelReport: React.FC = () => {
     return null
   }
 
-  const currentVehicleData = selectedChartVehicle ? getChartDataForVehicle(selectedChartVehicle, chartTimePeriod) : []
+  const currentVehicleData = getChartDataForVehicle(chartTimePeriod)
 
   // Stats calculations
   const lastIndex = currentVehicleData.length - 1
@@ -513,15 +535,15 @@ const FuelReport: React.FC = () => {
   const isLowFuel = currentLevel <= 15
   const trend = currentLevel > prevLevel ? "up" : "down"
 
-  const availableVehicles = Array.from(new Set(sensorData.map((d) => d.vehicle_name)))
-  const allCurrentPageSelected = filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.id))
+  const allCurrentPageSelected =
+    filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.timestamp))
 
   // Handle page change
   const handlePageChange = (page: number) => {
     fetchTableData(page)
   }
 
-  if (sensorData.length === 0 && loadingState.isLoading) {
+  if (vehicles.length === 0 && loadingState.isLoading) {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
@@ -552,7 +574,16 @@ const FuelReport: React.FC = () => {
               </CardHeader>
               <CardContent className="text-center space-y-4">
                 <p>{error}</p>
-                <Button onClick={fetchChartData}>Try Again</Button>
+                <Button
+                  onClick={() => {
+                    fetchVehicles()
+                    if (selectedChartVehicle) {
+                      fetchChartData()
+                    }
+                  }}
+                >
+                  Try Again
+                </Button>
               </CardContent>
             </Card>
           </main>
@@ -583,18 +614,6 @@ const FuelReport: React.FC = () => {
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}
                 Refresh Chart Data
-              </Button>
-              <Button
-                onClick={() => fetchTableData(paginationState.currentPage)}
-                variant="outline"
-                disabled={tableLoading}
-              >
-                {tableLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Table Data
               </Button>
             </div>
           </div>
@@ -627,203 +646,49 @@ const FuelReport: React.FC = () => {
             </Card>
           )}
 
-          {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Current Level</CardTitle>
-                <Gauge className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center gap-2">
-                  <div className={`text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
-                    {currentLevel.toFixed(1)}L
-                  </div>
-                  {trend === "up" ? (
-                    <TrendingUp className="h-4 w-4 text-green-500" />
-                  ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
-                  )}
-                </div>
-                {isLowFuel && (
-                  <div className="flex items-center gap-1 mt-1">
-                    <AlertTriangle className="h-3 w-3 text-destructive" />
-                    <span className="text-xs text-destructive">Low Fuel Alert</span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Average Level</CardTitle>
-                <Fuel className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{averageLevel.toFixed(1)}L</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Max Level</CardTitle>
-                <TrendingUp className="h-4 w-4 text-green-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-green-600">{maxLevel.toFixed(1)}L</div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Min Level</CardTitle>
-                <TrendingDown className="h-4 w-4 text-red-500" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold text-red-600">{minLevel.toFixed(1)}L</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Enhanced Chart */}
-          {selectedChartVehicle && (
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>
-                    Fuel Level Over Time - {selectedChartVehicle}
-                    <span className="text-sm font-normal text-muted-foreground ml-2">
-                      ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
-                    </span>
-                    {loadingState.isLoading && (
-                      <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
-                    )}
-                  </CardTitle>
-                  <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="time-period">Time Period:</Label>
-                      <Select value={chartTimePeriod} onValueChange={(v: TimePeriod) => setChartTimePeriod(v)}>
-                        <SelectTrigger className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="day">24 Hours</SelectItem>
-                          <SelectItem value="week">7 Days</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor="chart-vehicle">Vehicle:</Label>
-                      <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
-                        <SelectTrigger className="w-48">
-                          <SelectValue placeholder="Select Vehicle" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availableVehicles.map((v) => (
-                            <SelectItem key={v} value={v}>
-                              {v}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                <ChartContainer
-                  className="h-[600px] w-full"
-                  config={{
-                    level: { label: "Average Fuel Level", color: "hsl(var(--chart-1))" },
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={currentVehicleData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis
-                        dataKey="time"
-                        tick={{ fontSize: 11 }}
-                        angle={0}
-                        textAnchor="middle"
-                        height={80}
-                        interval={0}
-                      />
-                      <YAxis
-                        tick={{ fontSize: 12 }}
-                        label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend verticalAlign="top" height={36} />
-                      <ReferenceLine
-                        y={15}
-                        stroke="#dc2626"
-                        strokeDasharray="5 5"
-                        label={{
-                          value: "Low Fuel (15L)",
-                          position: "topRight",
-                          fill: "#dc2626",
-                          fontWeight: "bold",
-                          fontSize: 12,
-                        }}
-                      />
-                      <ReferenceLine
-                        y={5}
-                        stroke="#991b1b"
-                        strokeDasharray="3 3"
-                        label={{
-                          value: "Critical (5L)",
-                          position: "bottomRight",
-                          fill: "#991b1b",
-                          fontWeight: "bold",
-                          fontSize: 12,
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="level"
-                        name="Average Fuel Level"
-                        stroke="#2563eb"
-                        strokeWidth={4}
-                        dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
-                        activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Filters */}
+          {/* Enhanced Filters */}
           <Card>
             <CardHeader>
-              <CardTitle>Filters</CardTitle>
+              <CardTitle>Advanced Filters</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
-                  <Label htmlFor="vehicle">Vehicle</Label>
-                  <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Vehicles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Vehicles</SelectItem>
-                      {availableVehicles.map((v) => (
-                        <SelectItem key={v} value={v}>
-                          {v}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="start-date">Start Date</Label>
+                  <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="date-filter">Time Period</Label>
-                  <Select value={dateFilter} onValueChange={(v: "day" | "week" | "month") => setDateFilter(v)}>
+                  <Label htmlFor="end-date">End Date</Label>
+                  <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="report-period">Period</Label>
+                  <Select
+                    value={reportPeriod}
+                    onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
+                  >
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="day">Last 24 Hours</SelectItem>
-                      <SelectItem value="week">Last 7 Days</SelectItem>
-                      <SelectItem value="month">Last 30 Days</SelectItem>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="vehicle-select">Select Vehicle</Label>
+                  <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Choose a vehicle" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vehicles.map((v) => (
+                        <SelectItem key={v.license_plate} value={v.license_plate}>
+                          {v.name} ({v.license_plate})
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -837,204 +702,430 @@ const FuelReport: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Data Table */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
-                  {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
-                  {tableLoading && <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>}
-                </CardTitle>
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
+          {!selectedChartVehicle ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Select a Vehicle</CardTitle>
+              </CardHeader>
+              <CardContent className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <Fuel className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
+                  <h3 className="text-lg font-semibold mb-2">No Vehicle Selected</h3>
+                  <p className="text-muted-foreground">
+                    Please select a vehicle from the filters above to view fuel reports and analytics.
+                  </p>
                 </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <>
+              {/* Statistics */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardHeader className="flex items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">Current Level</CardTitle>
+                    <Gauge className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center gap-2">
+                      <div className={`text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
+                        {currentLevel.toFixed(1)}L
+                      </div>
+                      {trend === "up" ? (
+                        <TrendingUp className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <TrendingDown className="h-4 w-4 text-red-500" />
+                      )}
+                    </div>
+                    {isLowFuel && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <AlertTriangle className="h-3 w-3 text-destructive" />
+                        <span className="text-xs text-destructive">Low Fuel Alert</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">Average Level</CardTitle>
+                    <Fuel className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold">{averageLevel.toFixed(1)}L</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">Max Level</CardTitle>
+                    <TrendingUp className="h-4 w-4 text-green-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-green-600">{maxLevel.toFixed(1)}L</div>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardHeader className="flex items-center justify-between pb-2">
+                    <CardTitle className="text-sm font-medium">Min Level</CardTitle>
+                    <TrendingDown className="h-4 w-4 text-red-500" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold text-red-600">{minLevel.toFixed(1)}L</div>
+                  </CardContent>
+                </Card>
               </div>
-            </CardHeader>
-            <CardContent>
-              {tableLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-4 text-muted-foreground">Loading table data...</p>
-                  </div>
-                </div>
-              ) : (
-                <ScrollArea className="h-[600px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">
-                          <Checkbox
-                            checked={allCurrentPageSelected}
-                            onCheckedChange={toggleSelectAllPage}
-                            aria-label="Select all on page"
+
+              {/* Enhanced Chart */}
+              {selectedChartVehicle && (
+                <Card>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle>
+                        Fuel Level Over Time -{" "}
+                        {vehicles.find((v) => v.license_plate === selectedChartVehicle)?.name || selectedChartVehicle}
+                        <span className="text-sm font-normal text-muted-foreground ml-2">
+                          ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
+                        </span>
+                        {loadingState.isLoading && (
+                          <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
+                        )}
+                      </CardTitle>
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="time-period">Time Period:</Label>
+                          <Select value={chartTimePeriod} onValueChange={(v: TimePeriod) => setChartTimePeriod(v)}>
+                            <SelectTrigger className="w-32">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="day">24 Hours</SelectItem>
+                              <SelectItem value="week">7 Days</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label htmlFor="chart-vehicle">Vehicle:</Label>
+                          <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Select Vehicle" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {vehicles.map((v) => (
+                                <SelectItem key={v.license_plate} value={v.license_plate}>
+                                  {v.name} ({v.license_plate})
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <ChartContainer
+                      className="h-[600px] w-full"
+                      config={{
+                        level: { label: "Average Fuel Level", color: "hsl(var(--chart-1))" },
+                      }}
+                    >
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={currentVehicleData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
+                          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                          <XAxis
+                            dataKey="time"
+                            tick={{ fontSize: 11 }}
+                            angle={0}
+                            textAnchor="middle"
+                            height={80}
+                            interval={0}
                           />
-                        </TableHead>
-                        <TableHead>Vehicle</TableHead>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Fuel Level</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Speed</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Notes</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredData.map((data) => (
-                        <TableRow key={data.id} className="hover:bg-muted/50">
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedRecords.includes(data.id)}
-                              onCheckedChange={(checked) => handleRecordSelection(data.id, checked as boolean)}
-                              aria-label={`Select record ${data.id}`}
-                            />
-                          </TableCell>
-                          <TableCell className="font-medium">{data.vehicle_name}</TableCell>
-                          <TableCell className="font-mono text-xs">{data.timestamp_display}</TableCell>
-                          <TableCell
-                            className={
-                              Number.parseFloat(data.fuel_level.replace(/L/i, "")) <= 15
-                                ? "text-red-600 font-semibold"
-                                : ""
-                            }
-                          >
-                            {data.fuel_level}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">{data.location}</TableCell>
-                          <TableCell>{data.speed} km/h</TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
-                                {data.ignition ? "ON" : "OFF"}
-                              </Badge>
-                              {data.movement && (
-                                <Badge variant="outline" className="text-xs">
-                                  MOVING
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{data.notes}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
+                          <YAxis
+                            tick={{ fontSize: 12 }}
+                            label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
+                          />
+                          <Tooltip content={<CustomTooltip />} />
+                          <Legend verticalAlign="top" height={36} />
+                          <ReferenceLine
+                            y={15}
+                            stroke="#dc2626"
+                            strokeDasharray="5 5"
+                            label={{
+                              value: "Low Fuel (15L)",
+                              position: "topRight",
+                              fill: "#dc2626",
+                              fontWeight: "bold",
+                              fontSize: 12,
+                            }}
+                          />
+                          <ReferenceLine
+                            y={5}
+                            stroke="#991b1b"
+                            strokeDasharray="3 3"
+                            label={{
+                              value: "Critical (5L)",
+                              position: "bottomRight",
+                              fill: "#991b1b",
+                              fontWeight: "bold",
+                              fontSize: 12,
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="level"
+                            name="Average Fuel Level"
+                            stroke="#2563eb"
+                            strokeWidth={4}
+                            dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
+                            activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </ChartContainer>
+                  </CardContent>
+                </Card>
               )}
 
-              {/* API-based Pagination */}
-              {paginationState.totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}
-                    total records)
+              {/* Filters */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Filters</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label htmlFor="date-filter">Time Period</Label>
+                      <Select value={dateFilter} onValueChange={(v: "day" | "week" | "month") => setDateFilter(v)}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="day">Last 24 Hours</SelectItem>
+                          <SelectItem value="week">Last 7 Days</SelectItem>
+                          <SelectItem value="month">Last 30 Days</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2 items-end">
+                      <Button onClick={handleFilter}>Apply Filters</Button>
+                      <Button variant="outline" onClick={clearFilters}>
+                        Clear
+                      </Button>
+                    </div>
                   </div>
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            if (paginationState.hasPrevious) handlePageChange(paginationState.currentPage - 1)
-                          }}
-                          className={!paginationState.hasPrevious ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
+                </CardContent>
+              </Card>
 
-                      {/* Show first page */}
-                      {paginationState.currentPage > 3 && (
-                        <>
+              {/* Data Table */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle>
+                      Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
+                      {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
+                      {tableLoading && (
+                        <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>
+                      )}
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => fetchTableData(paginationState.currentPage)}
+                        variant="outline"
+                        disabled={tableLoading}
+                      >
+                        {tableLoading ? (
+                          <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                        )}
+                        Refresh Table Data
+                      </Button>
+                      <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {tableLoading ? (
+                    <div className="flex items-center justify-center h-64">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+                        <p className="mt-4 text-muted-foreground">Loading table data...</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <ScrollArea className="h-[600px]">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-12">
+                              <Checkbox
+                                checked={allCurrentPageSelected}
+                                onCheckedChange={toggleSelectAllPage}
+                                aria-label="Select all on page"
+                              />
+                            </TableHead>
+                            <TableHead>Timestamp</TableHead>
+                            <TableHead>Fuel Level</TableHead>
+                            <TableHead>Location</TableHead>
+                            <TableHead>Speed</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Engine Hours</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {filteredData.map((data) => (
+                            <TableRow key={data.timestamp} className="hover:bg-muted/50">
+                              <TableCell>
+                                <Checkbox
+                                  checked={selectedRecords.includes(data.timestamp)}
+                                  onCheckedChange={(checked) =>
+                                    handleRecordSelection(data.timestamp, checked as boolean)
+                                  }
+                                  aria-label={`Select record ${data.timestamp}`}
+                                />
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {new Date(data.timestamp).toLocaleString()}
+                              </TableCell>
+                              <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
+                                {data.fuel_liters}L
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
+                              </TableCell>
+                              <TableCell>{data.speed} km/h</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                                    {data.ignition ? "ON" : "OFF"}
+                                  </Badge>
+                                  {data.movement && (
+                                    <Badge variant="outline" className="text-xs">
+                                      MOVING
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>{data.engine_hours}h</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </ScrollArea>
+                  )}
+
+                  {/* API-based Pagination */}
+                  {paginationState.totalPages > 1 && (
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-sm text-muted-foreground">
+                        Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}
+                        total records)
+                      </div>
+                      <Pagination>
+                        <PaginationContent>
                           <PaginationItem>
-                            <PaginationLink
+                            <PaginationPrevious
                               href="#"
                               onClick={(e) => {
                                 e.preventDefault()
-                                handlePageChange(1)
+                                if (paginationState.hasPrevious) handlePageChange(paginationState.currentPage - 1)
                               }}
-                            >
-                              1
-                            </PaginationLink>
+                              className={!paginationState.hasPrevious ? "pointer-events-none opacity-50" : ""}
+                            />
                           </PaginationItem>
-                          {paginationState.currentPage > 4 && <span className="px-2">...</span>}
-                        </>
-                      )}
 
-                      {/* Show pages around current page */}
-                      {Array.from({ length: Math.min(5, paginationState.totalPages) }, (_, i) => {
-                        const pageNum =
-                          Math.max(1, Math.min(paginationState.totalPages - 4, paginationState.currentPage - 2)) + i
-                        if (pageNum <= paginationState.totalPages) {
-                          return (
-                            <PaginationItem key={pageNum}>
-                              <PaginationLink
-                                href="#"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  handlePageChange(pageNum)
-                                }}
-                                isActive={pageNum === paginationState.currentPage}
-                              >
-                                {pageNum}
-                              </PaginationLink>
-                            </PaginationItem>
-                          )
-                        }
-                        return null
-                      })}
-
-                      {/* Show last page */}
-                      {paginationState.currentPage < paginationState.totalPages - 2 && (
-                        <>
-                          {paginationState.currentPage < paginationState.totalPages - 3 && (
-                            <span className="px-2">...</span>
+                          {/* Show first page */}
+                          {paginationState.currentPage > 3 && (
+                            <>
+                              <PaginationItem>
+                                <PaginationLink
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handlePageChange(1)
+                                  }}
+                                >
+                                  1
+                                </PaginationLink>
+                              </PaginationItem>
+                              {paginationState.currentPage > 4 && <span className="px-2">...</span>}
+                            </>
                           )}
+
+                          {/* Show pages around current page */}
+                          {Array.from({ length: Math.min(5, paginationState.totalPages) }, (_, i) => {
+                            const pageNum =
+                              Math.max(1, Math.min(paginationState.totalPages - 4, paginationState.currentPage - 2)) + i
+                            if (pageNum <= paginationState.totalPages) {
+                              return (
+                                <PaginationItem key={pageNum}>
+                                  <PaginationLink
+                                    href="#"
+                                    onClick={(e) => {
+                                      e.preventDefault()
+                                      handlePageChange(pageNum)
+                                    }}
+                                    isActive={pageNum === paginationState.currentPage}
+                                  >
+                                    {pageNum}
+                                  </PaginationLink>
+                                </PaginationItem>
+                              )
+                            }
+                            return null
+                          })}
+
+                          {/* Show last page */}
+                          {paginationState.currentPage < paginationState.totalPages - 2 && (
+                            <>
+                              {paginationState.currentPage < paginationState.totalPages - 3 && (
+                                <span className="px-2">...</span>
+                              )}
+                              <PaginationItem>
+                                <PaginationLink
+                                  href="#"
+                                  onClick={(e) => {
+                                    e.preventDefault()
+                                    handlePageChange(paginationState.totalPages)
+                                  }}
+                                >
+                                  {paginationState.totalPages}
+                                </PaginationLink>
+                              </PaginationItem>
+                            </>
+                          )}
+
                           <PaginationItem>
-                            <PaginationLink
+                            <PaginationNext
                               href="#"
                               onClick={(e) => {
                                 e.preventDefault()
-                                handlePageChange(paginationState.totalPages)
+                                if (paginationState.hasNext) handlePageChange(paginationState.currentPage + 1)
                               }}
-                            >
-                              {paginationState.totalPages}
-                            </PaginationLink>
+                              className={!paginationState.hasNext ? "pointer-events-none opacity-50" : ""}
+                            />
                           </PaginationItem>
-                        </>
-                      )}
+                        </PaginationContent>
+                      </Pagination>
+                    </div>
+                  )}
 
-                      <PaginationItem>
-                        <PaginationNext
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            if (paginationState.hasNext) handlePageChange(paginationState.currentPage + 1)
-                          }}
-                          className={!paginationState.hasNext ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-
-              {/* Download Buttons */}
-              <div className="mt-4 flex justify-end gap-2">
-                <Button
-                  onClick={() => downloadCSV(false)}
-                  className="flex items-center gap-2"
-                  disabled={selectedRecords.length === 0}
-                  variant="outline"
-                >
-                  <Download className="h-4 w-4" /> Download Selected ({selectedRecords.length})
-                </Button>
-                <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2">
-                  <Download className="h-4 w-4" /> Download Current Page
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+                  {/* Download Buttons */}
+                  <div className="mt-4 flex justify-end gap-2">
+                    <Button
+                      onClick={() => downloadCSV(false)}
+                      className="flex items-center gap-2"
+                      disabled={selectedRecords.length === 0}
+                      variant="outline"
+                    >
+                      <Download className="h-4 w-4" /> Download Selected ({selectedRecords.length})
+                    </Button>
+                    <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2">
+                      <Download className="h-4 w-4" /> Download Current Page
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </main>
       </div>
     </SidebarProvider>

@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'https://palmconnect.co/telematry',
+  baseURL: 'https://palmconnect.co/',
 });
 
 // Add request interceptor to include auth token

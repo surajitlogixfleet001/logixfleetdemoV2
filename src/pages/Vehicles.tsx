@@ -112,6 +112,7 @@ const Vehicles = () => {
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [connectionProgress, setConnectionProgress] = useState(0)
   const [isSimulationComplete, setIsSimulationComplete] = useState(false)
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   // Fetch vehicles list
   useEffect(() => {
@@ -203,18 +204,25 @@ const Vehicles = () => {
       setDetailLoading(true)
       setSelectedVehicle(null)
       setIsSimulationComplete(false)
+      // Clear previous data
+      setVehicleFuelRecords([])
+      setVehicleFuelEvents([])
 
-      // Fetch vehicle details
-      const vehicleResponse = await api.get(`/vehicles/${vehicle.imei}/`)
-      setSelectedVehicle(vehicleResponse.data)
+      // Fetch all data first before setting selectedVehicle
+      const [vehicleResponse, fuelRecordsResponse, fuelEventsResponse] = await Promise.all([
+        api.get(`/vehicles/${vehicle.imei}/`),
+        api.get(`/vehicles/${vehicle.imei}/fuel-records/`),
+        api.get(`/vehicles/${vehicle.imei}/fuel-events/`),
+      ])
 
-      // Fetch fuel records
-      const fuelRecordsResponse = await api.get(`/vehicles/${vehicle.imei}/fuel-records/`)
-      setVehicleFuelRecords(fuelRecordsResponse.data.fuel_records || [])
+      // Set all data at once
+      const vehicleData = vehicleResponse.data
+      const fuelRecords = fuelRecordsResponse.data.fuel_records || []
+      const fuelEvents = fuelEventsResponse.data.events || []
 
-      // Fetch fuel events
-      const fuelEventsResponse = await api.get(`/vehicles/${vehicle.imei}/fuel-events/`)
-      setVehicleFuelEvents(fuelEventsResponse.data.events || [])
+      setVehicleFuelRecords(fuelRecords)
+      setVehicleFuelEvents(fuelEvents)
+      setSelectedVehicle(vehicleData) // This triggers GPS simulation with all data available
 
       setActiveTab("overview")
       toast({

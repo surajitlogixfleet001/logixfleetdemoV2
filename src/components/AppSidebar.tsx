@@ -120,24 +120,23 @@ export function AppSidebar() {
                         asChild
                         className="h-7 px-3 text-xs font-light text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors"
                       >
-                        <a href="sms:+1234567890" className="flex items-center gap-2">
+                        <Link to ="/dashboard/sms-notifications" className="flex items-center gap-2">
                           <MessageSquare className="h-3 w-3" />
                           <span className="font-light">SMS Alerts</span>
-                        </a>
+                        </Link>
                       </SidebarMenuButton>
                       <SidebarMenuButton
                         asChild
                         className="h-7 px-3 text-xs font-light text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors"
                       >
-                        <a
-                          href="https://wa.me/1234567890"
-                          target="_blank"
+                        <Link to="/dashboard/whatsapp"
+                       
                           rel="noopener noreferrer"
                           className="flex items-center gap-2"
                         >
                           <Phone className="h-3 w-3" />
                           <span className="font-light">WhatsApp</span>
-                        </a>
+                        </Link>
                       </SidebarMenuButton>
                     </div>
                   </CollapsibleContent>

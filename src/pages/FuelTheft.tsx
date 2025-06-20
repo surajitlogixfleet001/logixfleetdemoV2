@@ -145,6 +145,136 @@ interface PaginationState {
 
 type TimePeriod = "day" | "week"
 
+// Static demo data for when no real data is available
+const demoFuelEvents: FuelEvent[] = [
+  {
+    id: "demo_001",
+    event_type: "fill",
+    vehicle: { license_plate: "KDA381X", name: "Fleet Truck 001" },
+    timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 hours ago
+    location: { latitude: 40.7128, longitude: -74.006 },
+    fuel_change: { amount_liters: 180, before_liters: 45, after_liters: 225 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_002",
+    event_type: "theft",
+    vehicle: { license_plate: "KDE386N", name: "Fleet Van 002" },
+    timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(), // 18 hours ago
+    location: { latitude: 40.7589, longitude: -73.9851 },
+    fuel_change: { amount_liters: -35, before_liters: 120, after_liters: 85 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_003",
+    event_type: "fill",
+    vehicle: { license_plate: "KDE366F", name: "Fleet Truck 003" },
+    timestamp: new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString(), // 15 hours ago
+    location: { latitude: 40.6892, longitude: -74.0445 },
+    fuel_change: { amount_liters: 200, before_liters: 30, after_liters: 230 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_004",
+    event_type: "theft",
+    vehicle: { license_plate: "KDA381X", name: "Fleet Truck 001" },
+    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
+    location: { latitude: 40.7505, longitude: -73.9934 },
+    fuel_change: { amount_liters: -28, before_liters: 200, after_liters: 172 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_005",
+    event_type: "fill",
+    vehicle: { license_plate: "JKL-012", name: "Fleet Car 004" },
+    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
+    location: { latitude: 40.7282, longitude: -73.7949 },
+    fuel_change: { amount_liters: 150, before_liters: 25, after_liters: 175 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_006",
+    event_type: "theft",
+    vehicle: { license_plate: "KDE386N", name: "Fleet Van 002" },
+    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
+    location: { latitude: 40.7831, longitude: -73.9712 },
+    fuel_change: { amount_liters: -22, before_liters: 85, after_liters: 63 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_007",
+    event_type: "fill",
+    vehicle: { license_plate: "MNO-345", name: "Fleet Truck 005" },
+    timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
+    location: { latitude: 40.7614, longitude: -73.9776 },
+    fuel_change: { amount_liters: 190, before_liters: 40, after_liters: 230 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+]
+
+const demoVehicles: Vehicle[] = [
+  {
+    id: 1,
+    name: "Fleet Truck 001",
+    imei: "123456789012345",
+    type: "truck",
+    license_plate: "KDA381X",
+    fuel_capacity: "300",
+    is_active: true,
+    driver_name: "John Doe",
+    driver_phone: "+1234567890",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 2,
+    name: "Fleet Van 002",
+    imei: "123456789012346",
+    type: "van",
+    license_plate: "KDE386N",
+    fuel_capacity: "200",
+    is_active: true,
+    driver_name: "Jane Smith",
+    driver_phone: "+1234567891",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 3,
+    name: "Fleet Truck 003",
+    imei: "123456789012347",
+    type: "truck",
+    license_plate: "KDE366F",
+    fuel_capacity: "300",
+    is_active: true,
+    driver_name: "Bob Johnson",
+    driver_phone: "+1234567892",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 4,
+    name: "Fleet Car 004",
+    imei: "123456789012348",
+    type: "car",
+    license_plate: "JKL-012",
+    fuel_capacity: "180",
+    is_active: true,
+    driver_name: "Alice Brown",
+    driver_phone: "+1234567893",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 5,
+    name: "Fleet Truck 005",
+    imei: "123456789012349",
+    type: "truck",
+    license_plate: "MNO-345",
+    fuel_capacity: "300",
+    is_active: true,
+    driver_name: "Charlie Wilson",
+    driver_phone: "+1234567894",
+    notes: "Demo vehicle",
+  },
+]
+
 const FuelTheft = () => {
   // State
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -162,6 +292,7 @@ const FuelTheft = () => {
   const [error, setError] = useState<string | null>(null)
   const [fuelLevelData, setFuelLevelData] = useState<FuelLevelDataPoint[]>([])
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
+  const [isUsingDemoData, setIsUsingDemoData] = useState(false)
   const [paginationState, setPaginationState] = useState<PaginationState>({
     currentPage: 1,
     totalPages: 1,
@@ -182,6 +313,24 @@ const FuelTheft = () => {
       name: v.name,
     }))
   }, [vehicles])
+
+  // Load demo data
+  const loadDemoData = () => {
+    setVehicles(demoVehicles)
+    setAllEvents(demoFuelEvents)
+    setTableEvents(demoFuelEvents)
+    setFilteredEvents(demoFuelEvents)
+    setIsUsingDemoData(true)
+    setPaginationState({
+      currentPage: 1,
+      totalPages: 1,
+      totalItems: demoFuelEvents.length,
+      pageSize: 50,
+      hasNext: false,
+      hasPrevious: false,
+    })
+
+  }
 
   // Fetch vehicles
   const fetchVehicles = async () => {
@@ -240,6 +389,7 @@ const FuelTheft = () => {
       console.log("📊 Chart events loaded:", eventsData.length)
       setAllEvents(eventsData)
       setError(null)
+      setIsUsingDemoData(false)
 
       if (eventsData.length > 0) {
         toast({
@@ -254,9 +404,11 @@ const FuelTheft = () => {
       setError(err.message || "Failed to fetch fuel events data")
       toast({
         title: "Error",
-        description: "Failed to fetch fuel events data. Please try again.",
+        description: "Failed to fetch fuel events data. Loading demo data instead.",
         variant: "destructive",
       })
+      // Load demo data on error
+      loadDemoData()
       return []
     } finally {
       setChartLoading(false)
@@ -314,6 +466,7 @@ const FuelTheft = () => {
       // Update table data
       setTableEvents(eventsData)
       setFilteredEvents(eventsData)
+      setIsUsingDemoData(false)
 
       // Update pagination state
       setPaginationState({
@@ -330,7 +483,15 @@ const FuelTheft = () => {
     } catch (err: any) {
       console.error("❌ Error fetching table data:", err)
       setError(err.message || "Failed to fetch table data")
-      toast({ title: "Error", description: "Failed to fetch table data. Please try again.", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: "Failed to fetch table data. Loading demo data instead.",
+        variant: "destructive",
+      })
+      // Load demo data on error
+      if (page === 1) {
+        loadDemoData()
+      }
       return []
     } finally {
       setTableLoading(false)
@@ -359,13 +520,15 @@ const FuelTheft = () => {
 
         console.log("🎉 INITIALIZATION COMPLETE!")
 
-        if (chartData.length === 0 && tableData.length === 0) {
-          console.warn("⚠️ No data loaded - this might indicate API issues")
-          setError("No fuel events data available. Please check your API endpoints.")
+        // If no real data was loaded, use demo data
+        if (chartData.length === 0 && tableData.length === 0 && !isUsingDemoData) {
+          console.warn("⚠️ No data loaded - loading demo data")
+          loadDemoData()
         }
       } catch (error) {
         console.error("💥 Initialization failed:", error)
-        setError("Failed to initialize page. Please refresh and try again.")
+        setError("Failed to initialize page. Loading demo data instead.")
+        loadDemoData()
       } finally {
         setLoading(false)
       }
@@ -376,7 +539,7 @@ const FuelTheft = () => {
 
   // When vehicle filter changes, reload data
   useEffect(() => {
-    if (!loading && vehicles.length > 0) {
+    if (!loading && vehicles.length > 0 && !isUsingDemoData) {
       console.log("🔄 Vehicle filter changed to:", selectedVehicleFilter)
       fetchAllEventsForChart()
       fetchTableData(1) // Reset to page 1 when vehicle changes
@@ -655,7 +818,9 @@ const FuelTheft = () => {
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    fetchTableData(page)
+    if (!isUsingDemoData) {
+      fetchTableData(page)
+    }
   }
 
   const theftCount = filteredEvents.filter((e) => e.event_type === "theft").length
@@ -687,42 +852,6 @@ const FuelTheft = () => {
     )
   }
 
-  // Show error screen
-  if (error && allEvents.length === 0 && tableEvents.length === 0) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <main className="flex-1 p-6 flex items-center justify-center">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle className="text-center text-destructive">Error Loading Data</CardTitle>
-              </CardHeader>
-              <CardContent className="text-center space-y-4">
-                <p>{error}</p>
-                <Button
-                  onClick={() => {
-                    setError(null)
-                    setLoading(true)
-                    fetchVehicles().then(() => {
-                      fetchAllEventsForChart().then(() => {
-                        fetchTableData(1).then(() => {
-                          setLoading(false)
-                        })
-                      })
-                    })
-                  }}
-                >
-                  Try Again
-                </Button>
-              </CardContent>
-            </Card>
-          </main>
-        </div>
-      </SidebarProvider>
-    )
-  }
-
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -737,10 +866,15 @@ const FuelTheft = () => {
               <p className="text-muted-foreground">Monitor and detect suspicious fuel activities across your fleet</p>
               {/* Debug info */}
               <p className="text-xs text-muted-foreground mt-1">
-                Debug: {allEvents.length} chart events, {tableEvents.length} table events, {vehicles.length} vehicles
+                {isUsingDemoData ? "📊 Demo Data Mode" : "🔗 Live Data Mode"} - {allEvents.length} chart events,{" "}
+                {tableEvents.length} table events, {vehicles.length} vehicles
               </p>
             </div>
             <div className="flex gap-2">
+              <Button onClick={loadDemoData} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load Demo Data
+              </Button>
               <Button onClick={fetchAllEventsForChart} variant="outline" disabled={chartLoading}>
                 {chartLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -764,7 +898,9 @@ const FuelTheft = () => {
             </div>
           </div>
 
-          {error && (
+         
+
+          {error && !isUsingDemoData && (
             <Card className="border-orange-500">
               <CardContent className="pt-6">
                 <div className="text-center text-orange-600">
@@ -832,6 +968,7 @@ const FuelTheft = () => {
                   ({chartTimePeriod === "day" ? "Last 24 hours" : "Last 7 days"})
                 </span>
                 {chartLoading && <span className="text-xs text-orange-600 ml-2">(Loading chart data...)</span>}
+                {isUsingDemoData && <span className="text-xs text-blue-600 ml-2">(Demo Data)</span>}
               </CardTitle>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -865,63 +1002,50 @@ const FuelTheft = () => {
               </div>
             </CardHeader>
             <CardContent className="p-6">
-              {fuelLevelData.length > 0 ? (
-                <ChartContainer
-                  className="h-[600px] w-full"
-                  config={{
-                    level: { label: "Fuel Level", color: "hsl(var(--chart-1))" },
-                  }}
-                >
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={fuelLevelData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                      <XAxis dataKey="displayTime" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
-                      <YAxis
-                        tick={{ fontSize: 12 }}
-                        domain={[0, maxFuelLevel]}
-                        label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
-                      />
-                      <Tooltip content={<CustomTooltip />} />
-                      <Legend verticalAlign="top" height={36} />
+              <ChartContainer
+                className="h-[600px] w-full"
+                config={{
+                  level: { label: "Fuel Level", color: "hsl(var(--chart-1))" },
+                }}
+              >
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={fuelLevelData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="displayTime" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                    <YAxis
+                      tick={{ fontSize: 12 }}
+                      domain={[0, maxFuelLevel]}
+                      label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend verticalAlign="top" height={36} />
 
-                      {/* Low fuel warning reference line */}
-                      <ReferenceLine
-                        y={50}
-                        stroke="#f97316"
-                        strokeDasharray="3 3"
-                        label={{
-                          value: "Low Fuel Warning (50L)",
-                          position: "right",
-                          fill: "#f97316",
-                          fontWeight: "bold",
-                          fontSize: 12,
-                        }}
-                      />
+                    {/* Low fuel warning reference line */}
+                    <ReferenceLine
+                      y={50}
+                      stroke="#f97316"
+                      strokeDasharray="3 3"
+                      label={{
+                        value: "Low Fuel Warning (50L)",
+                        position: "right",
+                        fill: "#f97316",
+                        fontWeight: "bold",
+                        fontSize: 12,
+                      }}
+                    />
 
-                      <Line
-                        type="monotone"
-                        dataKey="level"
-                        name="Fuel Level"
-                        stroke="#2563eb"
-                        strokeWidth={4}
-                        dot={<CustomizedDot />}
-                        activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </ChartContainer>
-              ) : (
-                <div className="h-[600px] flex items-center justify-center border border-dashed rounded-lg">
-                  <div className="text-center text-muted-foreground">
-                    <p>No fuel level data available for chart</p>
-                    <p className="text-sm">
-                      {allEvents.length === 0
-                        ? "No events loaded from API"
-                        : "Try selecting a different time period or vehicle"}
-                    </p>
-                  </div>
-                </div>
-              )}
+                    <Line
+                      type="monotone"
+                      dataKey="level"
+                      name="Fuel Level"
+                      stroke="#2563eb"
+                      strokeWidth={4}
+                      dot={<CustomizedDot />}
+                      activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
             <div className="px-6 pb-6">
               <div className="flex flex-wrap gap-4 justify-center">
@@ -1027,6 +1151,7 @@ const FuelTheft = () => {
                   {tableLoading && (
                     <span className="text-sm font-normal text-orange-600 ml-2">(Loading table data...)</span>
                   )}
+                  {isUsingDemoData && <span className="text-sm font-normal text-blue-600 ml-2">(Demo Data)</span>}
                 </CardTitle>
               </div>
             </CardHeader>
@@ -1074,7 +1199,7 @@ const FuelTheft = () => {
                                 }`}
                               >
                                 {event.event_type === "theft" ? "-" : "+"}
-                                {event.fuel_change.amount_liters}L
+                                {Math.abs(event.fuel_change.amount_liters)}L
                               </span>
                               <span className="text-xs text-muted-foreground">
                                 {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
@@ -1131,7 +1256,7 @@ const FuelTheft = () => {
                                           }`}
                                         >
                                           {selectedEvent.event_type === "theft" ? "-" : "+"}
-                                          {selectedEvent.fuel_change.amount_liters}L
+                                          {Math.abs(selectedEvent.fuel_change.amount_liters)}L
                                         </p>
                                       </div>
                                       <div>
@@ -1179,14 +1304,16 @@ const FuelTheft = () => {
                   <div className="text-center text-muted-foreground">
                     <p>No fuel events available</p>
                     <p className="text-sm">
-                      {tableEvents.length === 0 ? "No events loaded from API" : "Try adjusting your filters"}
+                      {tableEvents.length === 0
+                        ? "Click 'Load Demo Data' to see sample events"
+                        : "Try adjusting your filters"}
                     </p>
                   </div>
                 </div>
               )}
 
               {/* API-based Pagination */}
-              {paginationState.totalPages > 1 && (
+              {paginationState.totalPages > 1 && !isUsingDemoData && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
                     Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}

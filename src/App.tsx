@@ -8,6 +8,8 @@ import Index from "./pages/Index";
 import Vehicles from "./pages/Vehicles";
 import FuelReport from "./pages/FuelReport";
 import FuelTheft from "./pages/FuelTheft";
+import SmSWhatsapp from "./pages/SMSNotifications";
+import Whatsapp from "./pages/WhatsAppNotifications";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -51,6 +53,22 @@ const App = () => (
             element={
               <ProtectedRoute>
                 <FuelTheft />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/whatsapp" 
+            element={
+              <ProtectedRoute>
+                <Whatsapp />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="/dashboard/sms-notifications" 
+            element={
+              <ProtectedRoute>
+                <SmSWhatsapp />
               </ProtectedRoute>
             } 
           />

@@ -249,7 +249,7 @@ const Index = () => {
 
                       <div className="pt-4 border-t border-muted">
                         <div className="text-center">
-                          <div className="text-2xl font-bold text-foreground mb-1">$47,230</div>
+                          <div className="text-2xl font-bold text-foreground mb-1">Kshs.47,230</div>
                           <div className="text-sm text-muted-foreground">Total Returns YTD</div>
                         </div>
                       </div>
@@ -398,10 +398,10 @@ const Index = () => {
                         <LineChart
                           data={[
                             { day: "Jun 13", value: 84.2 },
-                            { day: "Jun 14", value: 85.1 },
+                            { day: "Jun 14", value: 60.1 },
                             { day: "Jun 15", value: 84.8 },
                             { day: "Jun 16", value: 86.3 },
-                            { day: "Jun 17", value: 85.9 },
+                            { day: "Jun 17", value: 55.9 },
                             { day: "Jun 18", value: 87.1 },
                             { day: "Today", value: 87.3 },
                           ]}
@@ -445,8 +445,8 @@ const Index = () => {
                             <span className="text-sm font-medium text-red-700">1</span>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 003</div>
-                            <div className="text-xs text-muted-foreground">GHI-789</div>
+                            <div className="text-sm font-medium text-foreground">KDA381X</div>
+                            <div className="text-xs text-muted-foreground">353691842162892</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -461,8 +461,8 @@ const Index = () => {
                             <span className="text-sm font-medium text-orange-700">2</span>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Van 002</div>
-                            <div className="text-xs text-muted-foreground">DEF-456</div>
+                            <div className="text-sm font-medium text-foreground">KDE386N</div>
+                            <div className="text-xs text-muted-foreground">353691842162894</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -471,53 +471,9 @@ const Index = () => {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-50 border border-yellow-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-yellow-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-yellow-700">3</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 005</div>
-                            <div className="text-xs text-muted-foreground">MNO-345</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-yellow-700">52L</div>
-                          <div className="text-xs text-muted-foreground">3 incidents</div>
-                        </div>
-                      </div>
+                      
 
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-blue-700">4</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Car 004</div>
-                            <div className="text-xs text-muted-foreground">JKL-012</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-blue-700">28L</div>
-                          <div className="text-xs text-muted-foreground">2 incidents</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-green-700">5</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 001</div>
-                            <div className="text-xs text-muted-foreground">ABC-123</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-green-700">11L</div>
-                          <div className="text-xs text-muted-foreground">1 incident</div>
-                        </div>
-                      </div>
+                   
                     </div>
 
                     <div className="pt-4 border-t border-muted mt-4">
@@ -600,8 +556,8 @@ const Index = () => {
                             <span className="text-sm font-medium text-green-700">1</span>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 001</div>
-                            <div className="text-xs text-muted-foreground">ABC-123</div>
+                            <div className="text-sm font-medium text-foreground">KDE366F</div>
+                            <div className="text-xs text-muted-foreground">353691842162893</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -616,8 +572,8 @@ const Index = () => {
                             <span className="text-sm font-medium text-blue-700">2</span>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Van 002</div>
-                            <div className="text-xs text-muted-foreground">DEF-456</div>
+                            <div className="text-sm font-medium text-foreground">KDA381X</div>
+                            <div className="text-xs text-muted-foreground">353691842162892</div>
                           </div>
                         </div>
                         <div className="text-right">
@@ -632,44 +588,12 @@ const Index = () => {
                             <span className="text-sm font-medium text-purple-700">3</span>
                           </div>
                           <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Car 004</div>
-                            <div className="text-xs text-muted-foreground">JKL-012</div>
+                            <div className="text-sm font-medium text-foreground">KDE386N</div>
+                            <div className="text-xs text-muted-foreground">353691842162894</div>
                           </div>
                         </div>
                         <div className="text-right">
                           <div className="text-sm font-medium text-purple-700">89.5%</div>
-                          <div className="text-xs text-muted-foreground">efficiency</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50 border border-orange-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-orange-700">4</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 005</div>
-                            <div className="text-xs text-muted-foreground">MNO-345</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-orange-700">87.3%</div>
-                          <div className="text-xs text-muted-foreground">efficiency</div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between p-3 rounded-lg bg-gray-50 border border-gray-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center">
-                            <span className="text-sm font-medium text-gray-700">5</span>
-                          </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">Fleet Truck 003</div>
-                            <div className="text-xs text-muted-foreground">GHI-789</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <div className="text-sm font-medium text-gray-700">82.1%</div>
                           <div className="text-xs text-muted-foreground">efficiency</div>
                         </div>
                       </div>

@@ -25,8 +25,10 @@ import { Search, AlertTriangle, ArrowLeft, Car, Fuel, ShieldAlert, Eye, MapPin }
 import { AppSidebar } from "@/components/AppSidebar"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
+import { Progress } from "@/components/ui/progress"
+import { Satellite, Activity, Radio, Clock, CheckCircle, XCircle } from "lucide-react"
 
-// ... (keep all the existing interfaces and add new ones)
+// ... (keep all the existing interfaces)
 
 interface VehicleData {
   id: number
@@ -103,6 +105,14 @@ const Vehicles = () => {
   const [activeTab, setActiveTab] = useState("overview")
   const { toast } = useToast()
 
+  // GPS Status States
+  const [gpsStatus, setGpsStatus] = useState<"connecting" | "connected" | "disconnected" | "completed">("connecting")
+  const [signalStrength, setSignalStrength] = useState(0)
+  const [satelliteCount, setSatelliteCount] = useState(0)
+  const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
+  const [connectionProgress, setConnectionProgress] = useState(0)
+  const [isSimulationComplete, setIsSimulationComplete] = useState(false)
+
   // Fetch vehicles list
   useEffect(() => {
     const fetchVehicles = async () => {
@@ -121,11 +131,78 @@ const Vehicles = () => {
     fetchVehicles()
   }, [])
 
+  // GPS Connection Simulation Effect - Based on Vehicle Data
+  useEffect(() => {
+    if (selectedVehicle && !isSimulationComplete) {
+      // Reset states
+      setGpsStatus("connecting")
+      setSignalStrength(0)
+      setSatelliteCount(0)
+      setConnectionProgress(0)
+      setIsSimulationComplete(false)
+
+      const runConnectionSimulation = async () => {
+        // Phase 1: Initializing (20%)
+        await new Promise((resolve) => setTimeout(resolve, 800))
+        setConnectionProgress(20)
+        setSignalStrength(15)
+        setSatelliteCount(1)
+
+        // Phase 2: Searching satellites (40%)
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        setConnectionProgress(40)
+        setSignalStrength(35)
+        setSatelliteCount(3)
+
+        // Phase 3: Acquiring signal (60%)
+        await new Promise((resolve) => setTimeout(resolve, 1200))
+        setConnectionProgress(60)
+        setSignalStrength(55)
+        setSatelliteCount(5)
+
+        // Phase 4: Establishing connection (80%)
+        await new Promise((resolve) => setTimeout(resolve, 900))
+        setConnectionProgress(80)
+        setSignalStrength(75)
+        setSatelliteCount(7)
+
+        // Phase 5: Final connection attempt (100%)
+        await new Promise((resolve) => setTimeout(resolve, 700))
+        setConnectionProgress(100)
+
+        // Determine final status based on vehicle data
+        const hasRecentData = vehicleFuelRecords.length > 0
+        const isVehicleActive = selectedVehicle.is_active
+        const hasEvents = vehicleFuelEvents.length > 0
+
+        // Connection success logic based on actual data
+        const connectionSuccess = hasRecentData && isVehicleActive && (hasEvents || Math.random() > 0.2)
+
+        if (connectionSuccess) {
+          setSignalStrength(92)
+          setSatelliteCount(9)
+          setGpsStatus("connected")
+          setLastUpdate(new Date())
+        } else {
+          setSignalStrength(0)
+          setSatelliteCount(0)
+          setGpsStatus("disconnected")
+        }
+
+        setGpsStatus("completed")
+        setIsSimulationComplete(true)
+      }
+
+      runConnectionSimulation()
+    }
+  }, [selectedVehicle, vehicleFuelRecords, vehicleFuelEvents, isSimulationComplete])
+
   // Fetch vehicle details when a vehicle is selected
   const fetchVehicleDetails = async (vehicle: VehicleData) => {
     try {
       setDetailLoading(true)
       setSelectedVehicle(null)
+      setIsSimulationComplete(false)
 
       // Fetch vehicle details
       const vehicleResponse = await api.get(`/vehicles/${vehicle.imei}/`)
@@ -221,7 +298,188 @@ const Vehicles = () => {
 
   const chartData = generateChartData()
 
-  // If a vehicle is selected, show the detail view
+  // Get final connection status
+  const getFinalConnectionStatus = () => {
+    if (!isSimulationComplete) return null
+
+    const hasRecentData = vehicleFuelRecords.length > 0
+    const isVehicleActive = selectedVehicle?.is_active
+    const hasEvents = vehicleFuelEvents.length > 0
+
+    return hasRecentData && isVehicleActive && (hasEvents || signalStrength > 50)
+  }
+
+  // GPS Status Panel Component
+  const GPSStatusPanel = () => {
+    const isConnected = getFinalConnectionStatus()
+    const showFinalStatus = isSimulationComplete
+
+    return (
+      <Card className="mb-6 bg-white border border-gray-200 shadow-sm">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            {/* Left Section - Back Button & Vehicle Info */}
+            <div className="flex items-center gap-6">
+              <Button variant="outline" onClick={() => setSelectedVehicle(null)} className="flex items-center gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back to Vehicles
+              </Button>
+
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  {/* Animated Vehicle Icon */}
+                  <div
+                    className={`relative p-3 rounded-full ${
+                      showFinalStatus ? (isConnected ? "bg-green-100" : "bg-red-100") : "bg-blue-100"
+                    }`}
+                  >
+                    {!showFinalStatus && <div className="absolute inset-0 rounded-full bg-blue-200 animate-ping"></div>}
+                    <Car
+                      className={`h-6 w-6 relative z-10 ${
+                        showFinalStatus ? (isConnected ? "text-green-600" : "text-red-600") : "text-blue-600"
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-2xl font-bold text-gray-900">{selectedVehicle?.name}</div>
+                  <div className="text-sm text-gray-500">{selectedVehicle?.license_plate}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Center Section - Status Indicators */}
+            <div className="flex items-center gap-8">
+              {/* GPS Signal */}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Satellite
+                    className={`h-5 w-5 ${
+                      showFinalStatus ? (isConnected ? "text-green-600" : "text-red-600") : "text-blue-600"
+                    } ${!showFinalStatus ? "animate-pulse" : ""}`}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">GPS Signal</div>
+                  <div className="text-sm font-semibold text-gray-900">{signalStrength}%</div>
+                </div>
+              </div>
+
+              {/* Satellites */}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Radio
+                    className={`h-5 w-5 ${
+                      satelliteCount >= 4 ? "text-green-600" : "text-yellow-600"
+                    } ${!showFinalStatus ? "animate-pulse" : ""}`}
+                  />
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Satellites</div>
+                  <div className="text-sm font-semibold text-gray-900">{satelliteCount}/12</div>
+                </div>
+              </div>
+
+              {/* Connection Status */}
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  {showFinalStatus ? (
+                    isConnected ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <XCircle className="h-5 w-5 text-red-600" />
+                    )
+                  ) : (
+                    <Activity className="h-5 w-5 text-blue-600 animate-pulse" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs text-gray-500">Status</div>
+                  <div
+                    className={`text-sm font-semibold ${
+                      showFinalStatus ? (isConnected ? "text-green-600" : "text-red-600") : "text-blue-600"
+                    }`}
+                  >
+                    {showFinalStatus ? (isConnected ? "CONNECTED" : "DISCONNECTED") : "CONNECTING"}
+                  </div>
+                </div>
+              </div>
+
+              {/* Last Update */}
+              <div className="flex items-center gap-3">
+                <Clock className="h-5 w-5 text-gray-600" />
+                <div>
+                  <div className="text-xs text-gray-500">Last Update</div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    {showFinalStatus && isConnected ? lastUpdate.toLocaleTimeString() : "--:--"}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Section - Signal Bars & Status */}
+            <div className="flex items-center gap-4">
+              <div className="flex items-end gap-1">
+                {[1, 2, 3, 4, 5].map((bar) => (
+                  <div
+                    key={bar}
+                    className={`w-2 rounded-t transition-all duration-300 ${
+                      signalStrength >= bar * 20
+                        ? showFinalStatus
+                          ? isConnected
+                            ? "bg-green-500"
+                            : "bg-red-500"
+                          : "bg-blue-500"
+                        : "bg-gray-300"
+                    }`}
+                    style={{ height: signalStrength >= bar * 20 ? `${bar * 4 + 8}px` : "8px" }}
+                  />
+                ))}
+              </div>
+
+              {/* Live Indicator */}
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    showFinalStatus
+                      ? isConnected
+                        ? "bg-green-500 animate-pulse"
+                        : "bg-red-500"
+                      : "bg-blue-500 animate-pulse"
+                  }`}
+                ></div>
+                <span className="text-xs text-gray-600 font-medium">
+                  {showFinalStatus ? (isConnected ? "LIVE" : "OFFLINE") : "SYNC"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Progress Bar for Connection */}
+          {!showFinalStatus && (
+            <div className="mt-4">
+              <Progress value={connectionProgress} className="h-2" />
+              <div className="text-center text-sm text-gray-600 mt-2">
+                Establishing GPS connection... {connectionProgress}%
+              </div>
+            </div>
+          )}
+
+          {/* Final Status Message */}
+          {showFinalStatus && (
+            <div className="mt-4 text-center">
+              <div className={`text-sm font-medium ${isConnected ? "text-green-600" : "text-red-600"}`}>
+                {isConnected ? "✓ GPS connection established successfully" : "✗ Unable to establish GPS connection"}
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
+  // If a vehicle is selected, show the detail view with GPS panel
   if (selectedVehicle) {
     return (
       <SidebarProvider>
@@ -230,23 +488,12 @@ const Vehicles = () => {
           <SidebarInset>
             <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4">
               <div className="container mx-auto space-y-6">
-                {/* Header with back button */}
-                <div className="flex items-center gap-4 mb-8">
-                  <SidebarTrigger />
-                  <Button
-                    variant="outline"
-                    onClick={() => setSelectedVehicle(null)}
-                    className="flex items-center gap-2"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    Back to Vehicles
-                  </Button>
-                  <div>
-                    <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                      {selectedVehicle.name}
-                    </h1>
-                    <p className="text-muted-foreground mt-2">Vehicle Details & Analytics</p>
-                  </div>
+                {/* GPS Status Panel */}
+                <GPSStatusPanel />
+
+                {/* Vehicle Details & Analytics Header */}
+                <div className="text-center mb-6">
+                  <p className="text-muted-foreground">Vehicle Details & Analytics</p>
                 </div>
 
                 {detailLoading ? (

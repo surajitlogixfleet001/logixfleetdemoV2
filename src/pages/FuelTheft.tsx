@@ -32,7 +32,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
-import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
+import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
 
@@ -132,6 +132,7 @@ interface FuelLevelDataPoint {
     color: string
     id: string
   }
+  isMockup?: boolean // Add this flag to identify mockup vs real data
 }
 
 interface PaginationState {
@@ -275,6 +276,197 @@ const demoVehicles: Vehicle[] = [
   },
 ]
 
+// Enhanced function to generate realistic mockup fuel data for gaps in real data
+const generateMockupFuelData = (timePeriod: TimePeriod, vehiclePlate?: string): FuelLevelDataPoint[] => {
+  const now = new Date()
+  const hoursBack = timePeriod === "day" ? 24 : 168 // 24 hours or 7 days
+  const intervalHours = timePeriod === "day" ? 1 : 4 // Every hour for day, every 4 hours for week
+
+  const dataPoints: FuelLevelDataPoint[] = []
+  let currentLevel = 180 // Start with a reasonable fuel level
+
+  // Generate data points going backwards in time
+  for (let i = hoursBack; i >= 0; i -= intervalHours) {
+    const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000)
+
+    // Simulate natural fuel consumption (1-3 liters per hour when driving)
+    const consumption = Math.random() * 2 + 0.5 // 0.5-2.5L per interval
+    currentLevel = Math.max(20, currentLevel - consumption)
+
+    // Add some random events
+    const shouldAddEvent = Math.random() < 0.15 // 15% chance of event
+    let eventData = undefined
+
+    if (shouldAddEvent && i > 2) {
+      // Don't add events too close to current time
+      const eventType = Math.random() < 0.3 ? "theft" : "fill" // 30% theft, 70% fill
+
+      if (eventType === "theft" && currentLevel > 50) {
+        // Theft event - remove 20-50L
+        const stolenAmount = Math.random() * 30 + 20
+        const beforeLevel = currentLevel
+        currentLevel = Math.max(10, currentLevel - stolenAmount)
+
+        eventData = {
+          type: "theft",
+          display: "Theft",
+          color: "red",
+          id: `mockup_theft_${i}`,
+        }
+      } else if (eventType === "fill" && currentLevel < 200) {
+        // Fill event - add fuel to near capacity
+        const beforeLevel = currentLevel
+        currentLevel = Math.min(250, currentLevel + Math.random() * 100 + 100)
+
+        eventData = {
+          type: "fill",
+          display: "Refuel",
+          color: "green",
+          id: `mockup_fill_${i}`,
+        }
+      }
+    }
+
+    dataPoints.push({
+      timestamp: timestamp.toISOString(),
+      displayTime: timestamp.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      level: Math.round(currentLevel * 10) / 10, // Round to 1 decimal
+      event: eventData,
+      isMockup: true, // Mark as mockup data
+    })
+  }
+
+  // Reverse to get chronological order
+  return dataPoints.reverse()
+}
+
+// Enhanced function to fill data gaps with mockup data
+const fillDataGapsWithMockup = (
+  realData: FuelLevelDataPoint[],
+  timePeriod: TimePeriod,
+  vehiclePlate?: string,
+): FuelLevelDataPoint[] => {
+  if (!realData.length) {
+    // No real data at all, return full mockup
+    return generateMockupFuelData(timePeriod, vehiclePlate)
+  }
+
+  const now = new Date()
+  const hoursBack = timePeriod === "day" ? 24 : 168
+  const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+  const intervalHours = timePeriod === "day" ? 1 : 4
+
+  // Sort real data by timestamp
+  const sortedRealData = [...realData].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+
+  const combinedData: FuelLevelDataPoint[] = []
+  let lastRealLevel = 150 // Default starting level
+  let currentMockupLevel = 150
+
+  // Generate time slots for the entire period
+  for (let i = 0; i <= hoursBack; i += intervalHours) {
+    const currentTime = new Date(startTime.getTime() + i * 60 * 60 * 1000)
+    const currentTimeStr = currentTime.toISOString()
+
+    // Check if we have real data for this time slot (within 30 minutes)
+    const realDataPoint = sortedRealData.find((point) => {
+      const pointTime = new Date(point.timestamp)
+      const timeDiff = Math.abs(pointTime.getTime() - currentTime.getTime())
+      return timeDiff <= 30 * 60 * 1000 // Within 30 minutes
+    })
+
+    if (realDataPoint) {
+      // Use real data
+      combinedData.push({
+        ...realDataPoint,
+        isMockup: false,
+      })
+      lastRealLevel = realDataPoint.level
+      currentMockupLevel = realDataPoint.level
+    } else {
+      // Generate mockup data for this gap
+      // Simulate natural consumption
+      const consumption = Math.random() * 2 + 0.5
+      currentMockupLevel = Math.max(20, currentMockupLevel - consumption)
+
+      // Occasionally add events to make it interesting
+      const shouldAddEvent = Math.random() < 0.1 // 10% chance
+      let eventData = undefined
+
+      if (shouldAddEvent) {
+        const eventType = Math.random() < 0.3 ? "theft" : "fill"
+
+        if (eventType === "theft" && currentMockupLevel > 50) {
+          const stolenAmount = Math.random() * 30 + 20
+          currentMockupLevel = Math.max(10, currentMockupLevel - stolenAmount)
+          eventData = {
+            type: "theft",
+            display: "Theft (Simulated)",
+            color: "red",
+            id: `gap_theft_${i}`,
+          }
+        } else if (eventType === "fill" && currentMockupLevel < 200) {
+          currentMockupLevel = Math.min(250, currentMockupLevel + Math.random() * 100 + 100)
+          eventData = {
+            type: "fill",
+            display: "Refuel (Simulated)",
+            color: "green",
+            id: `gap_fill_${i}`,
+          }
+        }
+      }
+
+      combinedData.push({
+        timestamp: currentTimeStr,
+        displayTime: currentTime.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        level: Math.round(currentMockupLevel * 10) / 10,
+        event: eventData,
+        isMockup: true,
+      })
+    }
+  }
+
+  return combinedData
+}
+
+// Check if data has significant gaps or is mostly zeros
+const hasSignificantDataGaps = (events: FuelEvent[], timePeriod: TimePeriod): boolean => {
+  if (!events || events.length === 0) return true
+
+  const now = new Date()
+  const hoursBack = timePeriod === "day" ? 24 : 168
+  const startTime = new Date(now.getTime() - hoursBack * 60 * 60 * 1000)
+
+  // Filter events within the time period
+  const recentEvents = events.filter((e) => new Date(e.timestamp) >= startTime)
+
+  // Check if we have very few data points or mostly zeros
+  const hasVeryFewPoints = recentEvents.length < 3
+  const mostlyZeros =
+    recentEvents.filter((e) => e.fuel_change.before_liters <= 0.1 && e.fuel_change.after_liters <= 0.1).length >
+    recentEvents.length * 0.8
+
+  console.log("🔍 Data gap analysis:", {
+    totalEvents: events.length,
+    recentEvents: recentEvents.length,
+    hasVeryFewPoints,
+    mostlyZeros,
+    timePeriod,
+  })
+
+  return hasVeryFewPoints || mostlyZeros
+}
+
 const FuelTheft = () => {
   // State
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -286,13 +478,14 @@ const FuelTheft = () => {
   const [endDate, setEndDate] = useState("")
   const [eventTypeFilter, setEventTypeFilter] = useState("all")
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState("all")
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
   const [chartLoading, setChartLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [fuelLevelData, setFuelLevelData] = useState<FuelLevelDataPoint[]>([])
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
   const [isUsingDemoData, setIsUsingDemoData] = useState(false)
+  const [isUsingMockupChart, setIsUsingMockupChart] = useState(false)
   const [paginationState, setPaginationState] = useState<PaginationState>({
     currentPage: 1,
     totalPages: 1,
@@ -321,6 +514,7 @@ const FuelTheft = () => {
     setTableEvents(demoFuelEvents)
     setFilteredEvents(demoFuelEvents)
     setIsUsingDemoData(true)
+    setIsUsingMockupChart(false)
     setPaginationState({
       currentPage: 1,
       totalPages: 1,
@@ -329,7 +523,29 @@ const FuelTheft = () => {
       hasNext: false,
       hasPrevious: false,
     })
+  }
 
+  // Check if fuel data is all zeros or empty
+  const isDataAllZeros = (events: FuelEvent[]): boolean => {
+    if (!events || events.length === 0) return true
+
+    // Check if all fuel levels are zero or very close to zero
+    const allZeros = events.every(
+      (event) => event.fuel_change.before_liters <= 0.1 && event.fuel_change.after_liters <= 0.1,
+    )
+
+    console.log("🔍 Checking if data is all zeros:", {
+      eventsCount: events.length,
+      allZeros,
+      sampleEvent: events[0]
+        ? {
+            before: events[0].fuel_change.before_liters,
+            after: events[0].fuel_change.after_liters,
+          }
+        : null,
+    })
+
+    return allZeros
   }
 
   // Fetch vehicles
@@ -391,11 +607,16 @@ const FuelTheft = () => {
       setError(null)
       setIsUsingDemoData(false)
 
-      if (eventsData.length > 0) {
+      // Check if data is all zeros and show appropriate message
+      if (eventsData.length > 0 && !isDataAllZeros(eventsData)) {
+        setIsUsingMockupChart(false)
         toast({
           title: "Chart Data Loaded",
           description: `Successfully loaded ${eventsData.length} fuel events for chart.`,
         })
+      } else if (eventsData.length > 0 && isDataAllZeros(eventsData)) {
+        setIsUsingMockupChart(true)
+     
       }
 
       return eventsData
@@ -500,42 +721,31 @@ const FuelTheft = () => {
 
   // Initial data fetch - ALWAYS load company-wide data first
   useEffect(() => {
-    const initializeData = async () => {
-      console.log("🚀 INITIALIZING FUEL THEFT PAGE...")
-      setLoading(true)
-      setError(null)
-
+    console.log("🚀 LOADING MOCKUP DATA FIRST...")
+    loadDemoData() // Show mockup data immediately
+    
+    // Then load real data in the background
+    const loadRealData = async () => {
       try {
-        // Step 1: Fetch vehicles
+        console.log("🔄 Loading real data in background...")
         const vehiclesData = await fetchVehicles()
-        console.log("✅ Step 1 complete - Vehicles:", vehiclesData.length)
-
-        // Step 2: Fetch chart data (all company events)
         const chartData = await fetchAllEventsForChart()
-        console.log("✅ Step 2 complete - Chart events:", chartData.length)
-
-        // Step 3: Fetch table data (first page of company events)
         const tableData = await fetchTableData(1)
-        console.log("✅ Step 3 complete - Table events:", tableData.length)
-
-        console.log("🎉 INITIALIZATION COMPLETE!")
-
-        // If no real data was loaded, use demo data
-        if (chartData.length === 0 && tableData.length === 0 && !isUsingDemoData) {
-          console.warn("⚠️ No data loaded - loading demo data")
-          loadDemoData()
+        
+        // Only replace mockup if we got real data
+        if (chartData.length > 0 || tableData.length > 0) {
+          setIsUsingDemoData(false)
+         
         }
       } catch (error) {
-        console.error("💥 Initialization failed:", error)
-        setError("Failed to initialize page. Loading demo data instead.")
-        loadDemoData()
+        console.error("Failed to load real data, keeping mockup:", error)
       } finally {
         setLoading(false)
       }
     }
-
-    initializeData()
-  }, []) // Only run once on mount
+    
+    loadRealData()
+  }, [])
 
   // When vehicle filter changes, reload data
   useEffect(() => {
@@ -551,7 +761,13 @@ const FuelTheft = () => {
     console.log("📈 Generating fuel level data from", allEvents.length, "events")
 
     if (!allEvents.length) {
-      setFuelLevelData([])
+      // No events at all, generate full mockup
+      const mockupData = generateMockupFuelData(
+        chartTimePeriod,
+        selectedVehicleFilter !== "all" ? selectedVehicleFilter : undefined,
+      )
+      setFuelLevelData(mockupData)
+      setIsUsingMockupChart(true)
       return
     }
 
@@ -561,6 +777,102 @@ const FuelTheft = () => {
       eventsToProcess = allEvents.filter((e) => e.vehicle.license_plate === selectedVehicleFilter)
       console.log("📈 Filtered to", eventsToProcess.length, "events for vehicle", selectedVehicleFilter)
     }
+
+    // Check if we have significant data gaps or mostly zero data
+    const hasGaps = hasSignificantDataGaps(eventsToProcess, chartTimePeriod)
+
+    if (hasGaps) {
+      console.log("🎭 Detected data gaps - using hybrid real + mockup data")
+
+      // Convert real events to data points first
+      const realDataPoints: FuelLevelDataPoint[] = []
+
+      // Sort events by timestamp
+      const sortedEvents = [...eventsToProcess].sort(
+        (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
+      )
+
+      // Apply time period filter
+      const now = new Date()
+      let startTime: Date
+
+      switch (chartTimePeriod) {
+        case "day":
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+          break
+        case "week":
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+          break
+        default:
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      }
+
+      const filteredByTime = sortedEvents.filter((e) => new Date(e.timestamp) >= startTime)
+      console.log("📈 Time filtered to", filteredByTime.length, "real events")
+
+      // Convert real events to data points
+      filteredByTime.forEach((event) => {
+        const eventTimestamp = new Date(event.timestamp)
+        const level = event.fuel_change.after_liters
+
+        // Skip zero or very low levels from real data
+        if (level > 0.1) {
+          let eventColor = "gray"
+          let eventDisplay = event.event_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())
+
+          switch (event.event_type) {
+            case "theft":
+              eventColor = "red"
+              eventDisplay = "Theft"
+              break
+            case "fill":
+              eventColor = "green"
+              eventDisplay = "Refuel"
+              break
+            default:
+              eventColor = "gray"
+          }
+
+          realDataPoints.push({
+            timestamp: event.timestamp,
+            displayTime: eventTimestamp.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            }),
+            level,
+            event: {
+              type: event.event_type,
+              display: eventDisplay,
+              color: eventColor,
+              id: event.id,
+            },
+            isMockup: false,
+          })
+        }
+      })
+
+      // Fill gaps with mockup data
+      const hybridData = fillDataGapsWithMockup(
+        realDataPoints,
+        chartTimePeriod,
+        selectedVehicleFilter !== "all" ? selectedVehicleFilter : undefined,
+      )
+      setFuelLevelData(hybridData)
+      setIsUsingMockupChart(true)
+
+      toast({
+        title: "Data Gaps Detected",
+        description: `Filling ${hybridData.filter((d) => d.isMockup).length} data gaps with simulated data for better visualization.`,
+        variant: "default",
+      })
+
+      return
+    }
+
+    // We have good real data, use it normally
+    setIsUsingMockupChart(false)
 
     // Sort events by timestamp
     const sortedEvents = [...eventsToProcess].sort(
@@ -604,6 +916,7 @@ const FuelTheft = () => {
           minute: "2-digit",
         }),
         level: firstEvent.fuel_change.before_liters,
+        isMockup: false,
       })
     }
 
@@ -643,6 +956,7 @@ const FuelTheft = () => {
           color: eventColor,
           id: event.id,
         },
+        isMockup: false,
       })
     })
 
@@ -687,11 +1001,13 @@ const FuelTheft = () => {
             <div className="flex items-center gap-2 mb-2">
               <div className="w-3 h-3 rounded-full" style={{ backgroundColor: getEventColor(event.type) }} />
               <span className="font-bold">{event.display}</span>
+              {data.isMockup && <span className="text-xs text-blue-600">(Simulated)</span>}
             </div>
 
             <div className="space-y-1 text-sm">
               <div>
-                <span className="font-medium">Vehicle:</span> {eventDetails?.vehicle.license_plate}
+                <span className="font-medium">Vehicle:</span>{" "}
+                {eventDetails?.vehicle.license_plate || selectedVehicleFilter}
               </div>
               <div>
                 <span className="font-medium">Time:</span> {data.displayTime}
@@ -700,7 +1016,7 @@ const FuelTheft = () => {
                 <span className="font-medium">Fuel Level:</span> {data.level}L
               </div>
 
-              {eventDetails && (
+              {eventDetails && !data.isMockup && (
                 <>
                   <div>
                     <span className="font-medium">Previous Level:</span> {eventDetails.fuel_change.before_liters}L
@@ -720,6 +1036,7 @@ const FuelTheft = () => {
             <p className="font-medium">{data.displayTime}</p>
             <p className="text-sm">
               <span className="text-blue-600 font-medium">Fuel Level: {payload[0].value.toFixed(1)}L</span>
+              {data.isMockup && <span className="text-xs text-blue-600 block">(Simulated Data)</span>}
             </p>
           </div>
         )
@@ -868,6 +1185,7 @@ const FuelTheft = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 {isUsingDemoData ? "📊 Demo Data Mode" : "🔗 Live Data Mode"} - {allEvents.length} chart events,{" "}
                 {tableEvents.length} table events, {vehicles.length} vehicles
+       
               </p>
             </div>
             <div className="flex gap-2">
@@ -898,7 +1216,6 @@ const FuelTheft = () => {
             </div>
           </div>
 
-         
 
           {error && !isUsingDemoData && (
             <Card className="border-orange-500">
@@ -968,7 +1285,7 @@ const FuelTheft = () => {
                   ({chartTimePeriod === "day" ? "Last 24 hours" : "Last 7 days"})
                 </span>
                 {chartLoading && <span className="text-xs text-orange-600 ml-2">(Loading chart data...)</span>}
-                {isUsingDemoData && <span className="text-xs text-blue-600 ml-2">(Demo Data)</span>}
+            
               </CardTitle>
               <div className="flex items-center gap-4">
                 <div className="flex items-center gap-2">
@@ -1037,11 +1354,12 @@ const FuelTheft = () => {
                     <Line
                       type="monotone"
                       dataKey="level"
-                      name="Fuel Level"
-                      stroke="#2563eb"
+                      name={isUsingMockupChart ? "Fuel Level " : "Fuel Level"}
+                      stroke={isUsingMockupChart ? "#3b82f6" : "#2563eb"}
                       strokeWidth={4}
+                      strokeDasharray="0" // We'll handle dashing per segment if needed
                       dot={<CustomizedDot />}
-                      activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
+                      activeDot={{ r: 8, stroke: isUsingMockupChart ? "#3b82f6" : "#2563eb", strokeWidth: 3 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1057,6 +1375,7 @@ const FuelTheft = () => {
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   <span className="text-sm">Fill</span>
                 </div>
+          
               </div>
             </div>
           </Card>

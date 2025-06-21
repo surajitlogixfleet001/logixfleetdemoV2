@@ -95,6 +95,7 @@ interface ChartDataPoint {
   fullTimestamp: Date
   displayTime: string
   dataCount: number
+  isMockup?: boolean
 }
 
 interface LoadingState {
@@ -115,6 +116,83 @@ interface PaginationState {
   hasPrevious: boolean
 }
 
+// Demo data for immediate loading
+const demoVehicles: Vehicle[] = [
+  {
+    id: 1,
+    name: "Fleet Truck 001",
+    imei: "123456789012345",
+    type: "truck",
+    license_plate: "KDA381X",
+    fuel_capacity: "300",
+    is_active: true,
+    driver_name: "John Doe",
+    driver_phone: "+1234567890",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 2,
+    name: "Fleet Van 002",
+    imei: "123456789012346",
+    type: "van",
+    license_plate: "KDE386N",
+    fuel_capacity: "200",
+    is_active: true,
+    driver_name: "Jane Smith",
+    driver_phone: "+1234567891",
+    notes: "Demo vehicle",
+  },
+  {
+    id: 3,
+    name: "Fleet Truck 003",
+    imei: "123456789012347",
+    type: "truck",
+    license_plate: "KDE366F",
+    fuel_capacity: "300",
+    is_active: true,
+    driver_name: "Bob Johnson",
+    driver_phone: "+1234567892",
+    notes: "Demo vehicle",
+  },
+]
+
+// Generate realistic mockup fuel records
+const generateMockupFuelRecords = (count = 100): FuelRecord[] => {
+  const records: FuelRecord[] = []
+  const now = new Date()
+  let currentFuel = 180 // Start with reasonable fuel level
+
+  for (let i = count; i >= 0; i--) {
+    const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000) // Every 15 minutes
+
+    // Simulate natural fuel consumption
+    const consumption = Math.random() * 2 + 0.5 // 0.5-2.5L per 15min
+    currentFuel = Math.max(10, currentFuel - consumption)
+
+    // Occasionally refuel
+    if (Math.random() < 0.02 && currentFuel < 100) {
+      // 2% chance
+      currentFuel = Math.min(250, currentFuel + Math.random() * 150 + 100)
+    }
+
+    records.push({
+      timestamp: timestamp.toISOString(),
+      fuel_liters: Math.round(currentFuel * 10) / 10,
+      odometer: 50000 + (count - i) * 2, // Increasing odometer
+      latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
+      longitude: -74.006 + (Math.random() - 0.5) * 0.1,
+      speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20, // 30% stationary
+      ignition: Math.random() < 0.8, // 80% ignition on
+      movement: Math.random() < 0.7, // 70% moving
+      satellites: Math.floor(Math.random() * 8) + 4, // 4-12 satellites
+      external_voltage: 12.0 + Math.random() * 2, // 12-14V
+      engine_hours: 1000 + (count - i) * 0.25, // Increasing engine hours
+    })
+  }
+
+  return records.reverse() // Chronological order
+}
+
 const FuelReport: React.FC = () => {
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
   const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([])
@@ -133,7 +211,7 @@ const FuelReport: React.FC = () => {
     hasPrevious: false,
   })
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    isLoading: true,
+    isLoading: false, // Start with false since we load mockup immediately
     currentPage: 0,
     totalPages: 0,
     loadedRecords: 0,
@@ -143,6 +221,7 @@ const FuelReport: React.FC = () => {
   const [tableLoading, setTableLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRecords, setSelectedRecords] = useState<string[]>([])
+  const [isUsingMockupData, setIsUsingMockupData] = useState<boolean>(true)
   const { toast } = useToast()
 
   // Add these state variables after the existing state declarations
@@ -152,29 +231,58 @@ const FuelReport: React.FC = () => {
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
 
+  // Load mockup data immediately
+  const loadMockupData = () => {
+    console.log("📊 Loading mockup fuel data...")
+    const mockupRecords = generateMockupFuelRecords(100)
+
+    setVehicles(demoVehicles)
+    setFuelRecords(mockupRecords)
+    setTableData(mockupRecords.slice(0, 50)) // First 50 for table
+    setFilteredData(mockupRecords.slice(0, 50))
+    setIsUsingMockupData(true)
+
+    setPaginationState({
+      currentPage: 1,
+      totalPages: Math.ceil(mockupRecords.length / 50),
+      totalItems: mockupRecords.length,
+      pageSize: 50,
+      hasNext: mockupRecords.length > 50,
+      hasPrevious: false,
+    })
+
+    toast({
+      title: "Mockup Data Loaded",
+      description: "Showing sample data while loading real data in background",
+    })
+  }
+
   // Fetch vehicles
   const fetchVehicles = async () => {
     try {
       const response = await api.get("/vehicles/")
       const vehiclesData = response.data.fleet_overview || []
       setVehicles(vehiclesData)
+      return vehiclesData
     } catch (err: any) {
       console.error("Error fetching vehicles:", err)
       setError("Failed to fetch vehicles data")
+      return []
     }
   }
 
   // Fetch chart data (company-wide or vehicle-specific)
   const fetchChartData = async () => {
     try {
-      setLoadingState({
+      setLoadingState((prev) => ({
+        ...prev,
         isLoading: true,
         currentPage: 0,
         totalPages: 0,
         loadedRecords: 0,
         totalRecords: 0,
         progress: 0,
-      })
+      }))
       setError(null)
 
       // Always start with company-wide data, then filter if needed
@@ -196,6 +304,7 @@ const FuelReport: React.FC = () => {
 
       // Show first page data immediately
       setFuelRecords(firstData.fuel_records)
+      setIsUsingMockupData(false)
 
       setLoadingState({
         isLoading: totalPages > 1,
@@ -253,15 +362,27 @@ const FuelReport: React.FC = () => {
         }
 
         toast({
-          title: "Chart Data Loading Complete",
-          description: `Successfully loaded all ${totalRecords} fuel records for the chart.`,
+          title: "Real Data Loading Complete",
+          description: `Successfully loaded all ${totalRecords} fuel records.`,
+        })
+      } else {
+        toast({
+          title: "Real Data Loaded",
+          description: `Successfully loaded ${totalRecords} fuel records.`,
         })
       }
+
+      return firstData.fuel_records
     } catch (err: any) {
       console.error("Error fetching fuel data:", err)
       setError(err.message || "Failed to fetch fuel data")
       setLoadingState((prev) => ({ ...prev, isLoading: false }))
-      toast({ title: "Error", description: "Failed to fetch fuel data. Please try again.", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: "Failed to fetch real data. Using mockup data.",
+        variant: "destructive",
+      })
+      return []
     }
   }
 
@@ -287,6 +408,7 @@ const FuelReport: React.FC = () => {
       // Update table data
       setTableData(data.fuel_records)
       setFilteredData(data.fuel_records)
+      setIsUsingMockupData(false)
 
       // Update pagination state
       if (data.pagination) {
@@ -301,40 +423,57 @@ const FuelReport: React.FC = () => {
       }
 
       setSelectedRecords([]) // Clear selected records when changing pages
+      return data.fuel_records
     } catch (err: any) {
       console.error("Error fetching table data:", err)
       setError(err.message || "Failed to fetch table data")
-      toast({ title: "Error", description: "Failed to fetch table data. Please try again.", variant: "destructive" })
+      toast({
+        title: "Error",
+        description: "Failed to fetch table data. Using mockup data.",
+        variant: "destructive",
+      })
+      return []
     } finally {
       setTableLoading(false)
     }
   }
 
-  // Initial data fetch - load company-wide data
+  // Load mockup data immediately, then real data in background
   useEffect(() => {
-    const initializeData = async () => {
-      setLoadingState({
-        isLoading: true,
-        currentPage: 0,
-        totalPages: 0,
-        loadedRecords: 0,
-        totalRecords: 0,
-        progress: 0,
-      })
-      await fetchVehicles()
-      await fetchChartData() // Load all company fuel data initially
-      await fetchTableData(1) // Load first page of company fuel data
-      setLoadingState((prev) => ({ ...prev, isLoading: false }))
+    console.log("🚀 INITIALIZING FUEL REPORT...")
+
+    // Load mockup data immediately for fast UI
+    loadMockupData()
+
+    // Then load real data in background
+    const loadRealData = async () => {
+      try {
+        console.log("🔄 Loading real data in background...")
+        const vehiclesData = await fetchVehicles()
+        const chartData = await fetchChartData()
+        const tableData = await fetchTableData(1)
+
+        // Only show success if we got real data
+        if (chartData.length > 0 || tableData.length > 0) {
+          toast({
+            title: "Real Data Loaded",
+            description: "Switched from mockup to live data",
+          })
+        }
+      } catch (error) {
+        console.error("Failed to load real data, keeping mockup:", error)
+      }
     }
 
-    initializeData()
+    loadRealData()
   }, [])
 
   // When vehicle selection changes, reload data
   useEffect(() => {
-    // Always fetch data, whether vehicle is selected or not
-    fetchChartData()
-    fetchTableData(1) // Reset to page 1 when vehicle changes
+    if (!isUsingMockupData) {
+      fetchChartData()
+      fetchTableData(1) // Reset to page 1 when vehicle changes
+    }
   }, [selectedChartVehicle])
 
   const handleFilter = () => {
@@ -489,6 +628,7 @@ const FuelReport: React.FC = () => {
           avgLevel: avgLevel,
           fullTimestamp: new Date(),
           dataCount: slotData.length,
+          isMockup: isUsingMockupData,
         }
       })
     } else {
@@ -520,6 +660,7 @@ const FuelReport: React.FC = () => {
           avgLevel: avgLevel,
           fullTimestamp: dayDate,
           dataCount: dayData.length,
+          isMockup: isUsingMockupData,
         })
       }
 
@@ -536,6 +677,7 @@ const FuelReport: React.FC = () => {
           <p className="font-medium">{data.displayTime}</p>
           <p className="text-sm">
             <span className="text-blue-600 font-medium">Avg Fuel Level: {payload[0].value.toFixed(1)}L</span>
+            {data.isMockup && <span className="text-xs text-blue-600 block">(Mockup Data)</span>}
           </p>
           <p className="text-xs text-muted-foreground">Data points: {data.dataCount}</p>
         </div>
@@ -561,54 +703,17 @@ const FuelReport: React.FC = () => {
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    fetchTableData(page)
-  }
-
-  if (loadingState.isLoading && vehicles.length === 0) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <main className="flex-1 p-6 flex items-center justify-center">
-            <div className="flex items-center justify-center h-64">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                <p className="mt-4 text-muted-foreground">Loading initial fuel data...</p>
-                <p className="text-sm text-muted-foreground">Please wait while we fetch your data</p>
-              </div>
-            </div>
-          </main>
-        </div>
-      </SidebarProvider>
-    )
-  }
-
-  if (error) {
-    return (
-      <SidebarProvider>
-        <div className="min-h-screen flex w-full bg-background">
-          <AppSidebar />
-          <main className="flex-1 p-6 flex items-center justify-center">
-            <Card className="w-full max-w-md">
-              <CardHeader>
-                <CardTitle className="text-center text-destructive">Error</CardTitle>
-              </CardHeader>
-              <CardContent className="text-center space-y-4">
-                <p>{error}</p>
-                <Button
-                  onClick={() => {
-                    fetchVehicles()
-                    fetchChartData()
-                  }}
-                >
-                  Try Again
-                </Button>
-              </CardContent>
-            </Card>
-          </main>
-        </div>
-      </SidebarProvider>
-    )
+    if (!isUsingMockupData) {
+      fetchTableData(page)
+    } else {
+      // Handle mockup pagination
+      const startIndex = (page - 1) * 50
+      const endIndex = startIndex + 50
+      const mockupRecords = generateMockupFuelRecords(100)
+      setTableData(mockupRecords.slice(startIndex, endIndex))
+      setFilteredData(mockupRecords.slice(startIndex, endIndex))
+      setPaginationState((prev) => ({ ...prev, currentPage: page }))
+    }
   }
 
   return (
@@ -624,18 +729,40 @@ const FuelReport: React.FC = () => {
                 Fuel Monitoring Report
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {isUsingMockupData ? "📊 Mockup Data Mode" : "🔗 Live Data Mode"} - {fuelRecords.length} records loaded
+              </p>
             </div>
             <div className="flex gap-2">
+              <Button onClick={loadMockupData} variant="outline">
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Load Mockup Data
+              </Button>
               <Button onClick={fetchChartData} variant="outline" disabled={loadingState.isLoading}>
                 {loadingState.isLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />
                 ) : (
                   <RefreshCw className="h-4 w-4 mr-2" />
                 )}
-                Refresh Chart Data
+                Refresh Real Data
               </Button>
             </div>
           </div>
+
+          {/* Mockup Data Warning */}
+          {isUsingMockupData && (
+            <Card className="border-blue-500 bg-blue-50 dark:bg-blue-950">
+              <CardContent className="pt-6">
+                <div className="text-center text-blue-700 dark:text-blue-300">
+                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
+                  <p className="font-medium">Using Mockup Data</p>
+                  <p className="text-sm">
+                    Showing sample data for demonstration. Real data is loading in the background.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Loading Progress */}
           {loadingState.isLoading && (
@@ -643,7 +770,7 @@ const FuelReport: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading Chart Data...
+                  Loading Real Data...
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -659,7 +786,7 @@ const FuelReport: React.FC = () => {
                   <Progress value={loadingState.progress} className="w-full" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  You can view and filter the data below while more records are being loaded for the chart.
+                  You can view and filter the mockup data below while real data loads.
                 </p>
               </CardContent>
             </Card>
@@ -797,6 +924,7 @@ const FuelReport: React.FC = () => {
                   {loadingState.isLoading && (
                     <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
                   )}
+                  {isUsingMockupData && <span className="text-xs text-blue-600 ml-2">(Mockup Data)</span>}
                 </CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -881,11 +1009,12 @@ const FuelReport: React.FC = () => {
                     <Line
                       type="monotone"
                       dataKey="level"
-                      name="Average Fuel Level"
-                      stroke="#2563eb"
+                      name={isUsingMockupData ? "Average Fuel Level (Mockup)" : "Average Fuel Level"}
+                      stroke={isUsingMockupData ? "#3b82f6" : "#2563eb"}
                       strokeWidth={4}
-                      dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
-                      activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
+                      strokeDasharray={isUsingMockupData ? "5 5" : "0"}
+                      dot={{ fill: isUsingMockupData ? "#3b82f6" : "#2563eb", strokeWidth: 2, r: 6 }}
+                      activeDot={{ r: 8, stroke: isUsingMockupData ? "#3b82f6" : "#2563eb", strokeWidth: 3 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -931,6 +1060,7 @@ const FuelReport: React.FC = () => {
                   Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
                   {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
                   {tableLoading && <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>}
+                  {isUsingMockupData && <span className="text-sm font-normal text-blue-600 ml-2">(Mockup Data)</span>}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button

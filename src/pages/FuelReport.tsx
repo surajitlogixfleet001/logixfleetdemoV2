@@ -251,10 +251,7 @@ const FuelReport: React.FC = () => {
       hasPrevious: false,
     })
 
-    toast({
-      title: "Mockup Data Loaded",
-      description: "Showing sample data while loading real data in background",
-    })
+ 
   }
 
   // Fetch vehicles
@@ -377,11 +374,7 @@ const FuelReport: React.FC = () => {
       console.error("Error fetching fuel data:", err)
       setError(err.message || "Failed to fetch fuel data")
       setLoadingState((prev) => ({ ...prev, isLoading: false }))
-      toast({
-        title: "Error",
-        description: "Failed to fetch real data. Using mockup data.",
-        variant: "destructive",
-      })
+    
       return []
     }
   }
@@ -427,11 +420,7 @@ const FuelReport: React.FC = () => {
     } catch (err: any) {
       console.error("Error fetching table data:", err)
       setError(err.message || "Failed to fetch table data")
-      toast({
-        title: "Error",
-        description: "Failed to fetch table data. Using mockup data.",
-        variant: "destructive",
-      })
+
       return []
     } finally {
       setTableLoading(false)
@@ -455,10 +444,7 @@ const FuelReport: React.FC = () => {
 
         // Only show success if we got real data
         if (chartData.length > 0 || tableData.length > 0) {
-          toast({
-            title: "Real Data Loaded",
-            description: "Switched from mockup to live data",
-          })
+      
         }
       } catch (error) {
         console.error("Failed to load real data, keeping mockup:", error)
@@ -677,7 +663,7 @@ const FuelReport: React.FC = () => {
           <p className="font-medium">{data.displayTime}</p>
           <p className="text-sm">
             <span className="text-blue-600 font-medium">Avg Fuel Level: {payload[0].value.toFixed(1)}L</span>
-            {data.isMockup && <span className="text-xs text-blue-600 block">(Mockup Data)</span>}
+
           </p>
           <p className="text-xs text-muted-foreground">Data points: {data.dataCount}</p>
         </div>
@@ -729,40 +715,14 @@ const FuelReport: React.FC = () => {
                 Fuel Monitoring Report
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {isUsingMockupData ? "📊 Mockup Data Mode" : "🔗 Live Data Mode"} - {fuelRecords.length} records loaded
-              </p>
+            
             </div>
             <div className="flex gap-2">
-              <Button onClick={loadMockupData} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load Mockup Data
-              </Button>
-              <Button onClick={fetchChartData} variant="outline" disabled={loadingState.isLoading}>
-                {loadingState.isLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Real Data
-              </Button>
+             
             </div>
           </div>
 
           {/* Mockup Data Warning */}
-          {isUsingMockupData && (
-            <Card className="border-blue-500 bg-blue-50 dark:bg-blue-950">
-              <CardContent className="pt-6">
-                <div className="text-center text-blue-700 dark:text-blue-300">
-                  <AlertTriangle className="h-8 w-8 mx-auto mb-2" />
-                  <p className="font-medium">Using Mockup Data</p>
-                  <p className="text-sm">
-                    Showing sample data for demonstration. Real data is loading in the background.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Loading Progress */}
           {loadingState.isLoading && (
@@ -770,7 +730,7 @@ const FuelReport: React.FC = () => {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  Loading Real Data...
+                  
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -786,7 +746,6 @@ const FuelReport: React.FC = () => {
                   <Progress value={loadingState.progress} className="w-full" />
                 </div>
                 <p className="text-sm text-muted-foreground">
-                  You can view and filter the mockup data below while real data loads.
                 </p>
               </CardContent>
             </Card>
@@ -924,7 +883,7 @@ const FuelReport: React.FC = () => {
                   {loadingState.isLoading && (
                     <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
                   )}
-                  {isUsingMockupData && <span className="text-xs text-blue-600 ml-2">(Mockup Data)</span>}
+     
                 </CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -1009,7 +968,7 @@ const FuelReport: React.FC = () => {
                     <Line
                       type="monotone"
                       dataKey="level"
-                      name={isUsingMockupData ? "Average Fuel Level (Mockup)" : "Average Fuel Level"}
+                      name={isUsingMockupData ? "Average Fuel Level " : "Average Fuel Level"}
                       stroke={isUsingMockupData ? "#3b82f6" : "#2563eb"}
                       strokeWidth={4}
                       strokeDasharray={isUsingMockupData ? "5 5" : "0"}
@@ -1060,7 +1019,7 @@ const FuelReport: React.FC = () => {
                   Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
                   {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
                   {tableLoading && <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>}
-                  {isUsingMockupData && <span className="text-sm font-normal text-blue-600 ml-2">(Mockup Data)</span>}
+           
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button

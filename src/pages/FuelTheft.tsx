@@ -623,11 +623,7 @@ const FuelTheft = () => {
     } catch (err: any) {
       console.error("❌ Error fetching chart events:", err)
       setError(err.message || "Failed to fetch fuel events data")
-      toast({
-        title: "Error",
-        description: "Failed to fetch fuel events data. Loading demo data instead.",
-        variant: "destructive",
-      })
+    
       // Load demo data on error
       loadDemoData()
       return []
@@ -704,11 +700,7 @@ const FuelTheft = () => {
     } catch (err: any) {
       console.error("❌ Error fetching table data:", err)
       setError(err.message || "Failed to fetch table data")
-      toast({
-        title: "Error",
-        description: "Failed to fetch table data. Loading demo data instead.",
-        variant: "destructive",
-      })
+
       // Load demo data on error
       if (page === 1) {
         loadDemoData()
@@ -1189,10 +1181,7 @@ const FuelTheft = () => {
               </p>
             </div>
             <div className="flex gap-2">
-              <Button onClick={loadDemoData} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Load Demo Data
-              </Button>
+           
               <Button onClick={fetchAllEventsForChart} variant="outline" disabled={chartLoading}>
                 {chartLoading ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

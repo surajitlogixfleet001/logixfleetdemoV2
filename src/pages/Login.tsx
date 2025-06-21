@@ -19,35 +19,52 @@ const Login = () => {
   const { toast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
 
     try {
-      // Demo login - accept any email and password
-      if (email && password) {
-        localStorage.setItem("authToken", "demo-token")
-        localStorage.setItem("userFname", email.split("@")[0])
-        localStorage.setItem("isLoggedIn", "true")
+      const response = await fetch('https://palmconnect.co/user/login/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
 
-        toast({
-          title: "Login Successful",
-          description: "Welcome to Siphy",
-        })
+      const data = await response.json();
 
-        navigate("/dashboard")
-      } else {
-        throw new Error("Please enter email and password")
+      if (!response.ok) {
+        // Handle HTTP errors
+        throw new Error(data.message || 'Login failed');
       }
+
+      // Assuming the API returns { token: '...' }
+      const { token ,full_name } = data;
+      if (!token) {
+        throw new Error('No token returned from server');
+      }
+
+      // Store token and user info
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('userFname', full_name);
+      localStorage.setItem('isLoggedIn', 'true');
+
+      toast({
+        title: 'Login Successful',
+        description: 'Welcome to Siphy',
+      });
+
+      navigate('/dashboard');
     } catch (error: any) {
       toast({
-        title: "Login Failed",
-        description: error.message || "Please try again",
-        variant: "destructive",
-      })
+        title: 'Login Failed',
+        description: error.message || 'Please try again',
+        variant: 'destructive',
+      });
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
-  }
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">

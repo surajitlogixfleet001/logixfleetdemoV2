@@ -72,13 +72,7 @@ const Login = () => {
       <div
         className="absolute inset-0"
         style={{
-          background: `repeating-linear-gradient(
-            -45deg,
-            #fbbf24 0px,
-            #fbbf24 80px,
-            #1f2937 80px,
-            #1f2937 160px
-          )`,
+          background: '#333333',
         }}
       ></div>
 
@@ -87,7 +81,7 @@ const Login = () => {
         <Card className="w-full max-w-md bg-yellow-400 border-0 shadow-2xl">
           <CardHeader className="text-center pb-6">
             <div className="flex items-center justify-center mb-4">
-                                <img src="/si.png" alt="logo" className="h-10 w-70 object-cover" />
+                                <img src="/si2.png" alt="logo" className="h-20 w-70 object-cover" />
             </div>
             {/*<CardTitle className="text-3xl font-bold text-gray-900">Siphy</CardTitle>*/}
             <CardDescription className="text-gray-800 font-medium">
@@ -134,7 +128,6 @@ const Login = () => {
             </form>
 
             <div className="text-center space-y-2">
-              <p className="text-sm text-gray-800 font-medium">Demo credentials: any email and password</p>
               <p className="text-sm text-gray-800 font-medium flex items-center justify-center gap-1">
                 Proudly Made in Kenya 🇰🇪
               </p>

@@ -36,6 +36,8 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
 
+// ... keep existing code (interfaces and demo data) the same
+
 interface Vehicle {
   id: number
   name: string
@@ -117,7 +119,7 @@ interface PaginationState {
 const demoVehicles: Vehicle[] = [
   {
     id: 1,
-    name: "Fleet Truck 001",
+    name: "KDA381X",
     imei: "123456789012345",
     type: "truck",
     license_plate: "KDA381X",
@@ -129,7 +131,7 @@ const demoVehicles: Vehicle[] = [
   },
   {
     id: 2,
-    name: "Fleet Van 002",
+    name: "KDE386N",
     imei: "123456789012346",
     type: "van",
     license_plate: "KDE386N",
@@ -141,7 +143,7 @@ const demoVehicles: Vehicle[] = [
   },
   {
     id: 3,
-    name: "Fleet Truck 003",
+    name: "KDE366F",
     imei: "123456789012347",
     type: "truck",
     license_plate: "KDE366F",
@@ -194,10 +196,10 @@ const FuelReport: React.FC = () => {
   const [fuelRecords, setFuelRecords] = useState<FuelRecord[]>([])
   const [tableData, setTableData] = useState<FuelRecord[]>([])
   const [filteredData, setFilteredData] = useState<FuelRecord[]>([])
+  const [allFilteredData, setAllFilteredData] = useState<FuelRecord[]>([]) // Store all filtered data for download
   const [selectedVehicle, setSelectedVehicle] = useState<string>("all")
   const [selectedChartVehicle, setSelectedChartVehicle] = useState<string>("all")
   const [chartTimePeriod, setChartTimePeriod] = useState<TimePeriod>("day")
-  const [dateFilter, setDateFilter] = useState<"day" | "week" | "month">("day")
   const [paginationState, setPaginationState] = useState<PaginationState>({
     currentPage: 1,
     totalPages: 1,
@@ -219,12 +221,14 @@ const FuelReport: React.FC = () => {
   const [selectedRecords, setSelectedRecords] = useState<string[]>([])
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
-  // Filter states
+  // Table filter states (separate from chart)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
+
+  // ... keep existing code (data loading and manipulation functions) the same
 
   // Load demo data immediately on component mount
   const loadDemoData = () => {
@@ -282,40 +286,77 @@ const FuelReport: React.FC = () => {
     loadDemoData()
   }, [])
 
+  // Apply filters only to table data
   const handleFilter = () => {
-    let filtered = tableData
+    let filtered = [...fuelRecords] // Start with all records
 
-    // Date filter based on selection
-    const now = new Date()
-    let startTime: Date
-
-    switch (dateFilter) {
-      case "day":
-        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
-        break
-      case "week":
-        startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-        break
-      case "month":
-        startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
-        break
-      default:
-        startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+    // Date range filter
+    if (startDate) {
+      const start = new Date(startDate)
+      filtered = filtered.filter((d) => new Date(d.timestamp) >= start)
     }
 
-    filtered = filtered.filter((d) => new Date(d.timestamp) >= startTime)
-    setFilteredData(filtered)
+    if (endDate) {
+      const end = new Date(endDate + "T23:59:59") // Include the entire end date
+      filtered = filtered.filter((d) => new Date(d.timestamp) <= end)
+    }
+
+    // Vehicle filter by license plate
+    if (filterByLicensePlate) {
+      // In a real app, you'd filter by vehicle data associated with records
+      // For demo, we'll simulate this
+    }
+
+    // Vehicle filter by IMEI
+    if (filterByIMEI) {
+      // In a real app, you'd filter by IMEI associated with records
+      // For demo, we'll simulate this
+    }
+
+    // Store all filtered data for download
+    setAllFilteredData(filtered)
+
+    // Apply pagination to filtered results
+    const startIndex = (paginationState.currentPage - 1) * 50
+    const paginatedFiltered = filtered.slice(startIndex, startIndex + 50)
+    
+    setFilteredData(paginatedFiltered)
+    setTableData(paginatedFiltered)
+    
+    // Update pagination state
+    setPaginationState(prev => ({
+      ...prev,
+      totalItems: filtered.length,
+      totalPages: Math.ceil(filtered.length / 50),
+      hasNext: filtered.length > startIndex + 50,
+      hasPrevious: startIndex > 0,
+    }))
+    
     setSelectedRecords([])
   }
 
   const clearFilters = () => {
-    setDateFilter("day")
     setStartDate("")
     setEndDate("")
     setReportPeriod("daily")
     setFilterByLicensePlate("")
     setFilterByIMEI("")
-    setFilteredData(tableData)
+    
+    // Reset to original data
+    setAllFilteredData(fuelRecords)
+    const startIndex = (paginationState.currentPage - 1) * 50
+    const resetData = fuelRecords.slice(startIndex, startIndex + 50)
+    setFilteredData(resetData)
+    setTableData(resetData)
+    
+    setPaginationState(prev => ({
+      ...prev,
+      totalItems: fuelRecords.length,
+      totalPages: Math.ceil(fuelRecords.length / 50),
+      hasNext: fuelRecords.length > startIndex + 50,
+      hasPrevious: startIndex > 0,
+    }))
+    
     setSelectedRecords([])
   }
 
@@ -331,8 +372,9 @@ const FuelReport: React.FC = () => {
   }
 
   const downloadCSV = (downloadAll = false) => {
+    // For "Download All", use all filtered data; for "Download Selected", use only selected records
     const dataToDownload = downloadAll
-      ? filteredData
+      ? allFilteredData.length > 0 ? allFilteredData : fuelRecords // Download all filtered data or all data if no filters applied
       : filteredData.filter((d) => selectedRecords.includes(d.timestamp))
     
     if (!downloadAll && dataToDownload.length === 0) {
@@ -340,7 +382,7 @@ const FuelReport: React.FC = () => {
     }
     
     const headers = [
-      "Timestamp",
+      "Date and Time",
       "Fuel Level (L)",
       "Odometer",
       "Latitude",
@@ -384,7 +426,7 @@ const FuelReport: React.FC = () => {
     URL.revokeObjectURL(url)
   }
 
-  // Enhanced chart data processing
+  // Chart data processing (independent of table filters)
   const getChartDataForVehicle = (period: TimePeriod): ChartDataPoint[] => {
     const now = new Date()
     let startTime: Date
@@ -488,7 +530,7 @@ const FuelReport: React.FC = () => {
 
   const currentVehicleData = getChartDataForVehicle(chartTimePeriod)
 
-  // Stats calculations
+  // Stats calculations (based on chart data, not filtered table data)
   const lastIndex = currentVehicleData.length - 1
   const currentLevel = lastIndex >= 0 ? currentVehicleData[lastIndex].level : 0
   const prevLevel = lastIndex > 0 ? currentVehicleData[lastIndex - 1].level : currentLevel
@@ -503,122 +545,75 @@ const FuelReport: React.FC = () => {
 
   // Handle page change
   const handlePageChange = (page: number) => {
+    const dataSource = allFilteredData.length > 0 ? allFilteredData : fuelRecords
     const startIndex = (page - 1) * 50
     const endIndex = startIndex + 50
-    setTableData(fuelRecords.slice(startIndex, endIndex))
-    setFilteredData(fuelRecords.slice(startIndex, endIndex))
-    setPaginationState((prev) => ({ ...prev, currentPage: page }))
+    const pageData = dataSource.slice(startIndex, endIndex)
+    
+    setTableData(pageData)
+    setFilteredData(pageData)
+    setPaginationState((prev) => ({ 
+      ...prev, 
+      currentPage: page,
+      hasNext: dataSource.length > endIndex,
+      hasPrevious: startIndex > 0,
+    }))
   }
 
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
-        <main className="flex-1 p-6 space-y-6">
+        <main className="flex-1 p-3 sm:p-6 space-y-4 sm:space-y-6">
           {/* Header */}
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                <Fuel className="h-8 w-8 text-primary" />
-                Fuel Monitoring Report
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+                <Fuel className="h-6 w-6 sm:h-8 sm:w-8 text-primary" />
+                <span className="hidden sm:inline">Fuel Monitoring Report</span>
+                <span className="sm:hidden">Fuel Monitor</span>
               </h1>
-              <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
+              <p className="text-muted-foreground text-sm sm:text-base">Analyze fuel consumption and sensor data across your fleet</p>
             </div>
             <div className="flex gap-2">
               <Button 
                 onClick={fetchRealData} 
                 disabled={isRefreshing}
                 className="flex items-center gap-2"
+                size="sm"
               >
                 {isRefreshing ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <RefreshCw className="h-4 w-4" />
                 )}
-                Refresh
+                <span className="hidden sm:inline">Refresh</span>
               </Button>
             </div>
           </div>
 
-          {/* Enhanced Filters */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Advanced Filters</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div>
-                  <Label htmlFor="start-date">Start Date</Label>
-                  <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
-                </div>
-                <div>
-                  <Label htmlFor="end-date">End Date</Label>
-                  <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
-                </div>
-                <div>
-                  <Label htmlFor="report-period">Period</Label>
-                  <Select
-                    value={reportPeriod}
-                    onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor="vehicle-select">Select Vehicle</Label>
-                  <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Vehicles" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Vehicles</SelectItem>
-                      {vehicles.map((v) => (
-                        <SelectItem key={v.license_plate} value={v.license_plate}>
-                          {v.name} ({v.license_plate})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2 items-end">
-                  <Button onClick={handleFilter}>Apply Filters</Button>
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
           {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
             <Card>
               <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Current Level</CardTitle>
-                <Gauge className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-xs sm:text-sm font-medium">Current Level</CardTitle>
+                <Gauge className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2">
-                  <div className={`text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
+                  <div className={`text-lg sm:text-2xl font-bold ${isLowFuel ? "text-destructive" : "text-foreground"}`}>
                     {currentLevel.toFixed(1)}L
                   </div>
                   {trend === "up" ? (
-                    <TrendingUp className="h-4 w-4 text-green-500" />
+                    <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
                   ) : (
-                    <TrendingDown className="h-4 w-4 text-red-500" />
+                    <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
                   )}
                 </div>
                 {isLowFuel && (
                   <div className="flex items-center gap-1 mt-1">
-                    <AlertTriangle className="h-3 w-3 text-destructive" />
-                    <span className="text-xs text-destructive">Low Fuel Alert</span>
+                    <AlertTriangle className="h-2 w-2 sm:h-3 sm:w-3 text-destructive" />
+                    <span className="text-xs text-destructive">Low Fuel</span>
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground">
@@ -628,29 +623,29 @@ const FuelReport: React.FC = () => {
             </Card>
             <Card>
               <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Average Level</CardTitle>
-                <Fuel className="h-4 w-4 text-muted-foreground" />
+                <CardTitle className="text-xs sm:text-sm font-medium">Average Level</CardTitle>
+                <Fuel className="h-3 w-3 sm:h-4 sm:w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{averageLevel.toFixed(1)}L</div>
+                <div className="text-lg sm:text-2xl font-bold">{averageLevel.toFixed(1)}L</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Max Level</CardTitle>
-                <TrendingUp className="h-4 w-4 text-green-500" />
+                <CardTitle className="text-xs sm:text-sm font-medium">Max Level</CardTitle>
+                <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">{maxLevel.toFixed(1)}L</div>
+                <div className="text-lg sm:text-2xl font-bold text-green-600">{maxLevel.toFixed(1)}L</div>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Min Level</CardTitle>
-                <TrendingDown className="h-4 w-4 text-red-500" />
+                <CardTitle className="text-xs sm:text-sm font-medium">Min Level</CardTitle>
+                <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-red-600">{minLevel.toFixed(1)}L</div>
+                <div className="text-lg sm:text-2xl font-bold text-red-600">{minLevel.toFixed(1)}L</div>
               </CardContent>
             </Card>
           </div>
@@ -658,23 +653,23 @@ const FuelReport: React.FC = () => {
           {/* Enhanced Chart */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                <CardTitle className="text-base sm:text-lg">
                   Fuel Level Over Time
                   {selectedChartVehicle !== "all" && (
-                    <span className="text-sm font-normal text-muted-foreground ml-2">
+                    <span className="text-sm font-normal text-muted-foreground ml-2 block sm:inline">
                       - {vehicles.find((v) => v.license_plate === selectedChartVehicle)?.name || selectedChartVehicle}
                     </span>
                   )}
-                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                  <span className="text-xs sm:text-sm font-normal text-muted-foreground ml-2 block sm:inline">
                     ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
                   </span>
                 </CardTitle>
-                <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="time-period">Time Period:</Label>
+                    <Label htmlFor="time-period" className="text-xs sm:text-sm">Time Period:</Label>
                     <Select value={chartTimePeriod} onValueChange={(v: TimePeriod) => setChartTimePeriod(v)}>
-                      <SelectTrigger className="w-32">
+                      <SelectTrigger className="w-24 sm:w-32">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -684,9 +679,9 @@ const FuelReport: React.FC = () => {
                     </Select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Label htmlFor="chart-vehicle">Vehicle:</Label>
+                    <Label htmlFor="chart-vehicle" className="text-xs sm:text-sm">Vehicle:</Label>
                     <Select value={selectedChartVehicle} onValueChange={setSelectedChartVehicle}>
-                      <SelectTrigger className="w-48">
+                      <SelectTrigger className="w-32 sm:w-48">
                         <SelectValue placeholder="All Vehicles" />
                       </SelectTrigger>
                       <SelectContent>
@@ -702,26 +697,26 @@ const FuelReport: React.FC = () => {
                 </div>
               </div>
             </CardHeader>
-            <CardContent className="p-6">
+            <CardContent className="p-2 sm:p-6">
               <ChartContainer
-                className="h-[600px] w-full"
+                className="h-[300px] sm:h-[400px] lg:h-[600px] w-full"
                 config={{
                   level: { label: "Average Fuel Level", color: "hsl(var(--chart-1))" },
                 }}
               >
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={currentVehicleData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
+                  <LineChart data={currentVehicleData} margin={{ top: 20, right: 20, left: 20, bottom: 60 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                     <XAxis
                       dataKey="time"
-                      tick={{ fontSize: 11 }}
-                      angle={0}
-                      textAnchor="middle"
-                      height={80}
+                      tick={{ fontSize: 10 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={60}
                       interval={0}
                     />
                     <YAxis
-                      tick={{ fontSize: 12 }}
+                      tick={{ fontSize: 10 }}
                       label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
                     />
                     <Tooltip content={<CustomTooltip />} />
@@ -732,10 +727,10 @@ const FuelReport: React.FC = () => {
                       strokeDasharray="5 5"
                       label={{
                         value: "Low Fuel (15L)",
-                        position: "topRight",
+                        position: "top",
                         fill: "#dc2626",
                         fontWeight: "bold",
-                        fontSize: 12,
+                        fontSize: 10,
                       }}
                     />
                     <ReferenceLine
@@ -744,10 +739,10 @@ const FuelReport: React.FC = () => {
                       strokeDasharray="3 3"
                       label={{
                         value: "Critical (5L)",
-                        position: "bottomRight",
+                        position: "bottom",
                         fill: "#991b1b",
                         fontWeight: "bold",
-                        fontSize: 12,
+                        fontSize: 10,
                       }}
                     />
                     <Line
@@ -755,9 +750,9 @@ const FuelReport: React.FC = () => {
                       dataKey="level"
                       name="Average Fuel Level"
                       stroke="#2563eb"
-                      strokeWidth={4}
-                      dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
-                      activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
+                      strokeWidth={3}
+                      dot={{ fill: "#2563eb", strokeWidth: 2, r: 4 }}
+                      activeDot={{ r: 6, stroke: "#2563eb", strokeWidth: 2 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -765,112 +760,146 @@ const FuelReport: React.FC = () => {
             </CardContent>
           </Card>
 
-          {/* Filters */}
+          {/* Data Table with Advanced Filters */}
           <Card>
             <CardHeader>
-              <CardTitle>Filters</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <Label htmlFor="date-filter">Time Period</Label>
-                  <Select value={dateFilter} onValueChange={(v: "day" | "week" | "month") => setDateFilter(v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="day">Last 24 Hours</SelectItem>
-                      <SelectItem value="week">Last 7 Days</SelectItem>
-                      <SelectItem value="month">Last 30 Days</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2 items-end">
-                  <Button onClick={handleFilter}>Apply Filters</Button>
-                  <Button variant="outline" onClick={clearFilters}>
-                    Clear
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Data Table */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
-                  {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <CardTitle className="text-base sm:text-lg">
+                  <span className="block sm:hidden">Fuel Data</span>
+                  <span className="hidden sm:block">
+                    Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
+                    {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
+                  </span>
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">{selectedRecords.length} selected</span>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[600px]">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">
-                        <Checkbox
-                          checked={allCurrentPageSelected}
-                          onCheckedChange={toggleSelectAllPage}
-                          aria-label="Select all on page"
-                        />
-                      </TableHead>
-                      <TableHead>Timestamp</TableHead>
-                      <TableHead>Fuel Level</TableHead>
-                      <TableHead>Location</TableHead>
-                      <TableHead>Speed</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Engine Hours</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredData.map((data) => (
-                      <TableRow key={data.timestamp} className="hover:bg-muted/50">
-                        <TableCell>
+              {/* Advanced Filters for Table */}
+              <div className="mb-4 sm:mb-6 p-3 sm:p-4 border rounded-lg bg-muted/50">
+                <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4">Table Filters</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  <div>
+                    <Label htmlFor="start-date" className="text-xs sm:text-sm">Start Date</Label>
+                    <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="text-xs sm:text-sm" />
+                  </div>
+                  <div>
+                    <Label htmlFor="end-date" className="text-xs sm:text-sm">End Date</Label>
+                    <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="text-xs sm:text-sm" />
+                  </div>
+                  <div>
+                    <Label htmlFor="report-period" className="text-xs sm:text-sm">Period</Label>
+                    <Select
+                      value={reportPeriod}
+                      onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="daily">Daily</SelectItem>
+                        <SelectItem value="weekly">Weekly</SelectItem>
+                        <SelectItem value="monthly">Monthly</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="vehicle-select" className="text-xs sm:text-sm">Select Vehicle</Label>
+                    <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="All Vehicles" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Vehicles</SelectItem>
+                        {vehicles.map((v) => (
+                          <SelectItem key={v.license_plate} value={v.license_plate}>
+                            {v.name} ({v.license_plate})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex gap-2 items-end sm:col-span-2 lg:col-span-4">
+                    <Button onClick={handleFilter} size="sm">Apply Filters</Button>
+                    <Button variant="outline" onClick={clearFilters} size="sm">
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="overflow-x-auto">
+                <ScrollArea className="h-[400px] sm:h-[600px]">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-8 sm:w-12">
                           <Checkbox
-                            checked={selectedRecords.includes(data.timestamp)}
-                            onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
-                            aria-label={`Select record ${data.timestamp}`}
+                            checked={allCurrentPageSelected}
+                            onCheckedChange={toggleSelectAllPage}
+                            aria-label="Select all on page"
                           />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {new Date(data.timestamp).toLocaleString()}
-                        </TableCell>
-                        <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
-                          {data.fuel_liters}L
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
-                        </TableCell>
-                        <TableCell>{data.speed} km/h</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
-                              {data.ignition ? "ON" : "OFF"}
-                            </Badge>
-                            {data.movement && (
-                              <Badge variant="outline" className="text-xs">
-                                MOVING
-                              </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{data.engine_hours}h</TableCell>
+                        </TableHead>
+                        <TableHead className="text-xs sm:text-sm">Date and Time</TableHead>
+                        <TableHead className="text-xs sm:text-sm">Fuel Level</TableHead>
+                        <TableHead className="text-xs sm:text-sm hidden sm:table-cell">Location</TableHead>
+                        <TableHead className="text-xs sm:text-sm">Speed</TableHead>
+                        <TableHead className="text-xs sm:text-sm">Status</TableHead>
+                        <TableHead className="text-xs sm:text-sm hidden lg:table-cell">Engine Hours</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </ScrollArea>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredData.map((data) => (
+                        <TableRow key={data.timestamp} className="hover:bg-muted/50">
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedRecords.includes(data.timestamp)}
+                              onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
+                              aria-label={`Select record ${data.timestamp}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            <div className="flex flex-col">
+                              <span>{new Date(data.timestamp).toLocaleDateString()}</span>
+                              <span className="text-muted-foreground">{new Date(data.timestamp).toLocaleTimeString()}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className={`text-xs sm:text-sm ${data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}`}>
+                            {data.fuel_liters}L
+                          </TableCell>
+                          <TableCell className="font-mono text-xs hidden sm:table-cell">
+                            <div className="flex flex-col">
+                              <span>{data.latitude.toFixed(4)}</span>
+                              <span>{data.longitude.toFixed(4)}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs sm:text-sm">{data.speed} km/h</TableCell>
+                          <TableCell>
+                            <div className="flex flex-col sm:flex-row gap-1">
+                              <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                                {data.ignition ? "ON" : "OFF"}
+                              </Badge>
+                              {data.movement && (
+                                <Badge variant="outline" className="text-xs">
+                                  MOVING
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-xs sm:text-sm hidden lg:table-cell">{data.engine_hours}h</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </ScrollArea>
+              </div>
 
               {/* Pagination */}
               {paginationState.totalPages > 1 && (
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+                  <div className="text-xs sm:text-sm text-muted-foreground">
                     Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}
                     total records, {paginationState.pageSize} per page)
                   </div>
@@ -925,17 +954,22 @@ const FuelReport: React.FC = () => {
               )}
 
               {/* Download Buttons */}
-              <div className="mt-4 flex justify-end gap-2">
+              <div className="mt-4 flex flex-col sm:flex-row justify-end gap-2">
                 <Button
                   onClick={() => downloadCSV(false)}
                   className="flex items-center gap-2"
                   disabled={selectedRecords.length === 0}
                   variant="outline"
+                  size="sm"
                 >
-                  <Download className="h-4 w-4" /> Download Selected ({selectedRecords.length})
+                  <Download className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Download Selected ({selectedRecords.length})</span>
+                  <span className="sm:hidden">Selected ({selectedRecords.length})</span>
                 </Button>
-                <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2">
-                  <Download className="h-4 w-4" /> Download Current Page
+                <Button onClick={() => downloadCSV(true)} className="flex items-center gap-2" size="sm">
+                  <Download className="h-4 w-4" /> 
+                  <span className="hidden sm:inline">Download All</span>
+                  <span className="sm:hidden">All</span>
                 </Button>
               </div>
             </CardContent>

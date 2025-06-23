@@ -59,8 +59,8 @@ export function AppSidebar() {
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 group">
               <div className="relative">
-                <div className="w-100 h-25 bg-gradient-to-br rounded-xl flex items-center justify-center group-hover:scale-110 transition-all duration-300">
-                  <img src="/si.png" alt="logo" className="md:h-full object-cover" />
+                <div className="w-100 h-22">
+                  <img src="/si3.png" alt="logo" className="md:h-full object-cover" />
                 </div>
               </div>
               <span className="text-3xl font-bold text-indigo-700"></span>

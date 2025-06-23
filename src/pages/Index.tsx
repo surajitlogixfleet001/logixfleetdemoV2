@@ -4,10 +4,10 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
-import { Search, Bell, Settings, Grid3X3, HelpCircle, X, TrendingUp, TrendingDown, Info } from "lucide-react"
+import { Search, Bell, Settings, Grid3X3, HelpCircle, X, TrendingUp,Truck,Tag,Save,  Calendar, CalendarDays, CalendarClock, TrendingDown, Info } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Line } from "recharts"
+import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart,Label, Line } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 
 // Mock data for fuel events
@@ -40,12 +40,10 @@ const Index = () => {
 
   useEffect(() => {
     setTimeout(() => {
-
       const stored = localStorage.getItem('userFname');
         if (stored) {
           setEmail(stored);
         }
-      // localStorage.setItem("userFname", mockEmail)
       setLoading(false)
     }, 1000)
   }, [])
@@ -69,7 +67,7 @@ const Index = () => {
         <div className="min-h-screen flex w-full">
           <AppSidebar />
           <SidebarInset>
-            <div className="min-h-screen bg-background p-6">
+            <div className="min-h-screen bg-background p-4 md:p-6">
               <div className="flex items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               </div>
@@ -87,28 +85,29 @@ const Index = () => {
         <SidebarInset>
           <div className="min-h-screen bg-background">
             {/* Header */}
-            <div className="border-b bg-background px-6 py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
+            <div className="border-b bg-background px-4 md:px-6 py-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-2 md:gap-4">
                   <SidebarTrigger />
-                  <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                      Welcome {email
-    .split(" ")
-    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ")}
-                    </h1>
-                  <div className="relative">
-                    
+                  <h1 className="text-xl md:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    Welcome {email
+                      .split(" ")
+                      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                      .join(" ")}
+                  </h1>
+                </div>
+                
+                {/* Search and Actions */}
+                <div className="flex items-center gap-2 md:gap-4">
+                  <div className="relative flex-1 md:flex-none">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                     <Input
                       placeholder="Search"
-                      className="pl-10 w-80 bg-background border border-muted rounded-md text-sm font-normal"
+                      className="pl-10 w-full md:w-80 bg-background border border-muted rounded-md text-sm font-normal"
                     />
                   </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    
+                  
+                  <div className="flex items-center gap-2 md:gap-3">
                     <div className="relative">
                       <button
                         className="relative p-2 hover:bg-muted/50 rounded-md transition-colors"
@@ -124,19 +123,19 @@ const Index = () => {
 
                       {/* Notifications Dropdown */}
                       {showNotifications && (
-                        <div className="notification-dropdown absolute right-0 top-full mt-2 w-96 bg-background border border-muted rounded-lg shadow-lg z-50">
+                        <div className="notification-dropdown absolute right-0 top-full mt-2 w-80 md:w-96 bg-background border border-muted rounded-lg shadow-lg z-50">
                           <div className="p-4 border-b border-muted">
                             <div className="flex items-center justify-between mb-3">
                               <h3 className="text-base font-medium text-foreground">Notifications</h3>
-                              <button className="text-sm text-blue-600 hover:text-blue-700 font-normal border border-blue-200 px-3 py-1 rounded-md">
+                              <button className="text-sm text-blue-600 hover:text-blue-700 font-normal border border-blue-200 px-2 md:px-3 py-1 rounded-md">
                                 View preferences
                               </button>
                             </div>
                             <div className="flex items-center gap-2">
-                              <button className="flex-1 px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-sm font-medium">
+                              <button className="flex-1 px-3 md:px-4 py-2 bg-blue-50 text-blue-700 border border-blue-200 rounded-md text-sm font-medium">
                                 Unread
                               </button>
-                              <button className="text-sm text-muted-foreground font-normal hover:text-foreground px-4 py-2">
+                              <button className="text-sm text-muted-foreground font-normal hover:text-foreground px-3 md:px-4 py-2">
                                 All
                               </button>
                             </div>
@@ -158,45 +157,63 @@ const Index = () => {
                     <button className="p-2 hover:bg-muted/50 rounded-md transition-colors">
                       <Settings className="h-4 w-4 text-muted-foreground" />
                     </button>
-                    
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Main Content */}
-            <div className="p-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Fuel Events Chart - Takes up 2/3 of the width */}
-                <div className="lg:col-span-2">
-                  <Card className="h-[500px] border-0 shadow-sm">
+            <div className="p-4 md:p-6">
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 md:gap-6">
+                {/* Fuel Events Chart - Full width on mobile, 2/3 on desktop */}
+                <div className="xl:col-span-2">
+                  <Card className="h-[400px] md:h-[500px] border-0 shadow-sm">
                     <CardHeader className="pb-4">
-                      <CardTitle className="text-base font-normal text-foreground">Fuel Events Volume</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">
+                        Refill Theft Graph
+                      </CardTitle>
                     </CardHeader>
-                    <CardContent className="h-[420px]">
+                    <CardContent className="h-[320px] md:h-[420px]">
                       <ChartContainer
                         config={{
-                          refill: {
-                            label: "Fuel Refill",
-                            color: "#fbbf24",
-                          },
-                          theft: {
-                            label: "Fuel Theft",
-                            color: "#ef4444",
-                          },
+                          refill: { label: "Fuel Refill", color: "#fbbf24" },
+                          theft: { label: "Fuel Theft", color: "#ef4444" },
                         }}
                         className="h-full w-full"
                       >
                         <ResponsiveContainer width="100%" height="100%">
-                          <ComposedChart data={fuelEventData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                          <ComposedChart
+                            data={fuelEventData}
+                            margin={{ top: 20, right: 15, left: 10, bottom: 5 }}
+                          >
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
                             <XAxis
                               dataKey="date"
                               axisLine={false}
                               tickLine={false}
-                              tick={{ fontSize: 12, fill: "#64748b" }}
+                              tick={{ fontSize: 12, fill: "#334155" }}
+                              interval="preserveStartEnd"
                             />
-                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: "#64748b" }} />
+                            <YAxis
+                              axisLine={false}
+                              tickLine={false}
+                              tick={{ fontSize: 12, fill: "#334155" }}
+                            >
+                              <Label
+                                value="Refill"
+                                position="insideTop"
+                                offset={50}
+                                dx={-20}
+                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
+                              />
+                              <Label
+                                value="Theft"
+                                position="insideBottom"
+                                offset={10}
+                                dx={-20}
+                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
+                              />
+                            </YAxis>
                             <ChartTooltip
                               content={<ChartTooltipContent />}
                               formatter={(value, name) => [
@@ -213,44 +230,57 @@ const Index = () => {
                   </Card>
                 </div>
 
-                {/* ROI Section - Takes up 1/3 of the width */}
-                <div className="space-y-6">
+                {/* ROI Section */}
+                <div className="space-y-4 md:space-y-6">
                   <Card className="border-0 shadow-sm bg-gradient-to-br from-background to-muted/20">
-                    <CardHeader className="flex flex-row items-center justify-between pb-6">
-                      <CardTitle className="text-base font-normal text-foreground">ROI Performance</CardTitle>
-                      <X className="h-4 w-4 text-muted-foreground cursor-pointer hover:text-foreground transition-colors" />
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                      <div className="space-y-5">
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-green-50 border border-green-100">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4 text-green-600" />
-                            <span className="text-sm font-medium text-green-800">Annual ROI</span>
+                    <CardHeader className="flex items-center justify-between pb-4 md:pb-6">
+                      <div className="pt-4 border-t border-muted w-full">
+                        <div className="text-center">
+                          <div className="text-lg md:text-2xl font-bold text-foreground mb-1">
+                            Fuel Savings Performance
                           </div>
-                          <span className="text-lg font-semibold text-green-700">28.4%</span>
-                        </div>
-
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-blue-50 border border-blue-100">
-                          <div className="flex items-center gap-2">
-                            <TrendingUp className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-800">Quarterly ROI</span>
-                          </div>
-                          <span className="text-lg font-semibold text-blue-700">7.1%</span>
-                        </div>
-
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 border border-orange-100">
-                          <div className="flex items-center gap-2">
-                            <TrendingDown className="h-4 w-4 text-orange-600" />
-                            <span className="text-sm font-medium text-orange-800">Monthly ROI</span>
-                          </div>
-                          <span className="text-lg font-semibold text-orange-700">2.3%</span>
                         </div>
                       </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4 md:space-y-6">
+                      <div className="space-y-4 md:space-y-5">
+                        {/* Year-to-Date Savings */}
+                        <div className="flex justify-between items-center p-3 rounded-lg bg-green-50 border border-green-100">
+                          <div className="flex items-center gap-2">
+                            <Calendar className="h-4 w-4 text-green-600" />
+                            <span className="text-sm font-medium text-green-800">
+                              Yearly Savings
+                            </span>
+                          </div>
+                          <span className="text-base md:text-lg font-semibold text-green-700">
+                            Kshs.47,230
+                          </span>
+                        </div>
 
-                      <div className="pt-4 border-t border-muted">
-                        <div className="text-center">
-                          <div className="text-2xl font-bold text-foreground mb-1">Kshs.47,230</div>
-                          <div className="text-sm text-muted-foreground">Total Returns YTD</div>
+                        {/* Quarterly Savings */}
+                        <div className="flex justify-between items-center p-3 rounded-lg bg-blue-50 border border-blue-100">
+                          <div className="flex items-center gap-2">
+                            <CalendarDays className="h-4 w-4 text-blue-600" />
+                            <span className="text-sm font-medium text-blue-800">
+                              Quarterly Savings
+                            </span>
+                          </div>
+                          <span className="text-base md:text-lg font-semibold text-blue-700">
+                            Kshs.12,450
+                          </span>
+                        </div>
+
+                        {/* Monthly Savings */}
+                        <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 border border-orange-100">
+                          <div className="flex items-center gap-2">
+                            <CalendarClock className="h-4 w-4 text-orange-600" />
+                            <span className="text-sm font-medium text-orange-800">
+                              Monthly Savings
+                            </span>
+                          </div>
+                          <span className="text-base md:text-lg font-semibold text-orange-700">
+                            Kshs.4,125
+                          </span>
                         </div>
                       </div>
                     </CardContent>
@@ -260,13 +290,13 @@ const Index = () => {
             </div>
 
             {/* Fuel Overview Section */}
-            <div className="px-6 mt-12">
-              <div className="mb-6">
-                <h2 className="text-2xl font-normal text-foreground mb-6">Your fuel overview</h2>
+            <div className="px-4 md:px-6 mt-8 md:mt-12">
+              <div className="mb-4 md:mb-6">
+                <h2 className="text-xl md:text-2xl font-normal text-foreground mb-4 md:mb-6">Your fuel overview</h2>
               </div>
 
               {/* Fuel Metrics Grid */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {/* Fuel Theft Analytics */}
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
@@ -277,7 +307,7 @@ const Index = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <div className="text-3xl font-normal text-foreground">247L</div>
+                      <div className="text-2xl md:text-3xl font-normal text-foreground">247L</div>
                       <div className="flex items-center gap-2">
                         <Badge variant="destructive" className="text-xs">
                           +12.5%
@@ -286,7 +316,7 @@ const Index = () => {
                       </div>
                     </div>
 
-                    <div className="h-24">
+                    <div className="h-16 md:h-24">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={[
@@ -310,13 +340,13 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-                <a
-                      href="/dashboard/fuel-theft"
-                      className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                    >
-                      View more
-                    </a>                      
-                    <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
+                      <a
+                        href="/dashboard/fuel-theft"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
+                      >
+                        View more
+                      </a>                      
+                      <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -325,13 +355,13 @@ const Index = () => {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-bold text-foreground">Gross fuel volume</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">Fuel Event volume</CardTitle>
                       <Info className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <div className="text-3xl font-normal text-foreground">4,247L</div>
+                      <div className="text-2xl md:text-3xl font-normal text-foreground">4,247L</div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                           +8.2%
@@ -340,7 +370,7 @@ const Index = () => {
                       </div>
                     </div>
 
-                    <div className="h-24">
+                    <div className="h-16 md:h-24">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={[
@@ -364,12 +394,13 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-<a
-                      href="/dashboard/fuel-report"
-                      className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                    >
-                      View more
-                    </a>                        <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
+                      <a
+                        href="/dashboard/fuel-report"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
+                      >
+                        View more
+                      </a>                        
+                      <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -384,7 +415,7 @@ const Index = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <div className="text-3xl font-normal text-foreground">87.3%</div>
+                      <div className="text-2xl md:text-3xl font-normal text-foreground">87.3%</div>
                       <div className="flex items-center gap-2">
                         <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                           +2.1%
@@ -393,7 +424,7 @@ const Index = () => {
                       </div>
                     </div>
 
-                    <div className="h-24">
+                    <div className="h-16 md:h-24">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={[
@@ -417,12 +448,13 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-<a
-                      href="/dashboard/fuel-report"
-                      className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                    >
-                      View more
-                    </a>                        <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
+                      <a
+                        href="/dashboard/fuel-report"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
+                      >
+                        View more
+                      </a>                        
+                      <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
                 </Card>
@@ -430,8 +462,8 @@ const Index = () => {
             </div>
 
             {/* Vehicle Analytics Section */}
-            <div className="mt-12 px-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="mt-8 md:mt-12 px-4 md:px-6 pb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 md:gap-6">
                 {/* Vehicle Theft Rankings */}
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
@@ -441,15 +473,15 @@ const Index = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 rounded-lg bg-red-50 border border-red-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-red-700">1</span>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">KDA381X</div>
-                            <div className="text-xs text-muted-foreground">353691842162892</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">KDA381X</div>
+                            <div className="text-xs text-muted-foreground truncate">353691842162892</div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="text-sm font-medium text-red-700">89L</div>
                           <div className="text-xs text-muted-foreground">5 incidents</div>
                         </div>
@@ -457,28 +489,24 @@ const Index = () => {
 
                       <div className="flex items-center justify-between p-3 rounded-lg bg-orange-50 border border-orange-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-orange-700">2</span>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">KDE386N</div>
-                            <div className="text-xs text-muted-foreground">353691842162894</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">KDE386N</div>
+                            <div className="text-xs text-muted-foreground truncate">353691842162894</div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="text-sm font-medium text-orange-700">67L</div>
                           <div className="text-xs text-muted-foreground">4 incidents</div>
                         </div>
                       </div>
-
-                      
-
-                   
                     </div>
 
                     <div className="pt-4 border-t border-muted mt-4">
                       <div className="text-xs text-muted-foreground">
-                        Total stolen: 247L across 15 incidents this period
+                        Total stolen: 156L across 9 incidents this period
                       </div>
                     </div>
                   </CardContent>
@@ -497,11 +525,11 @@ const Index = () => {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
-                      <div className="text-3xl font-normal text-foreground">2</div>
+                      <div className="text-2xl md:text-3xl font-normal text-foreground">2</div>
                       <div className="text-sm text-muted-foreground">1 previous period</div>
                     </div>
 
-                    <div className="h-16">
+                    <div className="h-12 md:h-16">
                       <ResponsiveContainer width="100%" height="100%">
                         <LineChart
                           data={[
@@ -525,18 +553,19 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-<a
-                      href="/dashboard/vehicles"
-                      className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                    >
-                      View more
-                    </a>                        <div className="text-xs text-muted-foreground mt-1">Updated 3:42 PM</div>
+                      <a
+                        href="/dashboard/vehicles"
+                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
+                      >
+                        View more
+                      </a>                        
+                      <div className="text-xs text-muted-foreground mt-1">Updated 3:42 PM</div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Top Performing Vehicles */}
-                <Card className="border-0 shadow-sm">
+                <Card className="border-0 shadow-sm md:col-span-2 xl:col-span-1">
                   <CardHeader className="pb-4">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
@@ -552,15 +581,15 @@ const Index = () => {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between p-3 rounded-lg bg-green-50 border border-green-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-green-700">1</span>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">KDE366F</div>
-                            <div className="text-xs text-muted-foreground">353691842162893</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">KDE366F</div>
+                            <div className="text-xs text-muted-foreground truncate">353691842162893</div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="text-sm font-medium text-green-700">94.2%</div>
                           <div className="text-xs text-muted-foreground">efficiency</div>
                         </div>
@@ -568,15 +597,15 @@ const Index = () => {
 
                       <div className="flex items-center justify-between p-3 rounded-lg bg-blue-50 border border-blue-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-blue-700">2</span>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">KDA381X</div>
-                            <div className="text-xs text-muted-foreground">353691842162892</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">KDE386N</div>
+                            <div className="text-xs text-muted-foreground truncate">353691842162894</div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="text-sm font-medium text-blue-700">91.8%</div>
                           <div className="text-xs text-muted-foreground">efficiency</div>
                         </div>
@@ -584,15 +613,15 @@ const Index = () => {
 
                       <div className="flex items-center justify-between p-3 rounded-lg bg-purple-50 border border-purple-100">
                         <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center">
+                          <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-sm font-medium text-purple-700">3</span>
                           </div>
-                          <div>
-                            <div className="text-sm font-medium text-foreground">KDE386N</div>
-                            <div className="text-xs text-muted-foreground">353691842162894</div>
+                          <div className="min-w-0">
+                            <div className="text-sm font-medium text-foreground truncate">KDA381X</div>
+                            <div className="text-xs text-muted-foreground truncate">353691842162892</div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right flex-shrink-0">
                           <div className="text-sm font-medium text-purple-700">89.5%</div>
                           <div className="text-xs text-muted-foreground">efficiency</div>
                         </div>

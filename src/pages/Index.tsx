@@ -170,7 +170,7 @@ const Index = () => {
                   <Card className="h-[400px] md:h-[500px] border-0 shadow-sm">
                     <CardHeader className="pb-4">
                       <CardTitle className="text-base font-bold text-foreground">
-                        Refill Theft Graph
+                        Refill and Theft Graph
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="h-[320px] md:h-[420px]">
@@ -301,7 +301,7 @@ const Index = () => {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-bold text-foreground">Fuel theft incidents</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">Fuel Theft Amount</CardTitle>
                       <Info className="h-4 w-4 text-muted-foreground" />
                     </div>
                   </CardHeader>

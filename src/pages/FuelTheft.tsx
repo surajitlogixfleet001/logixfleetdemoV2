@@ -11,15 +11,6 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import {
-  Pagination,
-  PaginationContent,
-  PaginationItem,
-  PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
-} from "@/components/ui/pagination"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { ChartContainer } from "@/components/ui/chart"
 import {
   LineChart,
@@ -32,7 +23,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from "recharts"
-import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, Loader2, RefreshCw } from 'lucide-react'
+import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
 
@@ -187,7 +178,7 @@ const demoFuelEvents: FuelEvent[] = [
   {
     id: "demo_005",
     event_type: "fill",
-    vehicle: { license_plate: "JKL-012", name: "Fleet Car 004" },
+    vehicle: { license_plate: "KDA281Y", name: "Fleet Car 004" },
     timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
     location: { latitude: 40.7282, longitude: -73.7949 },
     fuel_change: { amount_liters: 150, before_liters: 25, after_liters: 175 },
@@ -205,7 +196,7 @@ const demoFuelEvents: FuelEvent[] = [
   {
     id: "demo_007",
     event_type: "fill",
-    vehicle: { license_plate: "MNO-345", name: "Fleet Truck 005" },
+    vehicle: { license_plate: "KDD261N", name: "Fleet Truck 005" },
     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
     location: { latitude: 40.7614, longitude: -73.9776 },
     fuel_change: { amount_liters: 190, before_liters: 40, after_liters: 230 },
@@ -406,7 +397,7 @@ const fillDataGapsWithMockup = (
           currentMockupLevel = Math.max(10, currentMockupLevel - stolenAmount)
           eventData = {
             type: "theft",
-            display: "Theft (Simulated)",
+            display: "Theft",
             color: "red",
             id: `gap_theft_${i}`,
           }
@@ -414,7 +405,7 @@ const fillDataGapsWithMockup = (
           currentMockupLevel = Math.min(250, currentMockupLevel + Math.random() * 100 + 100)
           eventData = {
             type: "fill",
-            display: "Refuel (Simulated)",
+            display: "Refuel",
             color: "green",
             id: `gap_fill_${i}`,
           }
@@ -497,6 +488,8 @@ const FuelTheft = () => {
   const { toast } = useToast()
 
   // Add these state variables after the existing state declarations
+  const [selectedRecords, setSelectedRecords] = useState<Set<string>>(new Set())
+  const [selectAll, setSelectAll] = useState(false)
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
 
   // Get unique vehicles from the data
@@ -616,14 +609,13 @@ const FuelTheft = () => {
         })
       } else if (eventsData.length > 0 && isDataAllZeros(eventsData)) {
         setIsUsingMockupChart(true)
-     
       }
 
       return eventsData
     } catch (err: any) {
       console.error("❌ Error fetching chart events:", err)
       setError(err.message || "Failed to fetch fuel events data")
-    
+
       // Load demo data on error
       loadDemoData()
       return []
@@ -637,23 +629,18 @@ const FuelTheft = () => {
     // try {
     //   setTableLoading(true)
     //   console.log("📋 Fetching table data for page:", page, "vehicle filter:", selectedVehicleFilter)
-
     //   // Build URL - always start with base endpoint
     //   let url = "/fuel-events/"
     //   const params = new URLSearchParams()
     //   params.append("page", page.toString())
-
     //   // Add vehicle filter if not "all"
     //   if (selectedVehicleFilter && selectedVehicleFilter !== "all") {
     //     params.append("license_plate", selectedVehicleFilter)
     //   }
-
     //   url += "?" + params.toString()
     //   console.log("📋 Table API URL:", url)
-
     //   const response = await api.get(url)
     //   console.log("📋 Table API response:", response.data)
-
     //   // Handle different response formats
     //   let eventsData: FuelEvent[] = []
     //   let paginationData = {
@@ -664,7 +651,6 @@ const FuelTheft = () => {
     //     has_next: false,
     //     has_previous: false,
     //   }
-
     //   if (response.data.events && Array.isArray(response.data.events)) {
     //     eventsData = response.data.events
     //     if (response.data.pagination) {
@@ -678,14 +664,11 @@ const FuelTheft = () => {
     //     console.warn("📋 Unexpected table data format:", response.data)
     //     eventsData = []
     //   }
-
     //   console.log("📋 Table events loaded:", eventsData.length)
-
     //   // Update table data
     //   // setTableEvents(eventsData)
     //   // setFilteredEvents(eventsData)
     //   setIsUsingDemoData(true)
-
     //   // Update pagination state
     //   setPaginationState({
     //     currentPage: paginationData.page,
@@ -695,13 +678,11 @@ const FuelTheft = () => {
     //     hasNext: paginationData.has_next,
     //     hasPrevious: paginationData.has_previous,
     //   })
-
     //   setError(null)
     //   return eventsData
     // } catch (err: any) {
     //   console.error("❌ Error fetching table data:", err)
     //   setError(err.message || "Failed to fetch table data")
-
     //   // Load demo data on error
     //   if (page === 1) {
     //     loadDemoData()
@@ -716,7 +697,7 @@ const FuelTheft = () => {
   useEffect(() => {
     console.log("🚀 LOADING MOCKUP DATA FIRST...")
     loadDemoData() // Show mockup data immediately
-    
+
     // Then load real data in the background
     const loadRealData = async () => {
       try {
@@ -724,11 +705,10 @@ const FuelTheft = () => {
         const vehiclesData = await fetchVehicles()
         const chartData = await fetchAllEventsForChart()
         const tableData = await fetchTableData(1)
-        
+
         // Only replace mockup if we got real data
         if (chartData.length > 0 || tableData.length > 0) {
           setIsUsingDemoData(false)
-         
         }
       } catch (error) {
         console.error("Failed to load real data, keeping mockup:", error)
@@ -736,7 +716,7 @@ const FuelTheft = () => {
         setLoading(false)
       }
     }
-    
+
     loadRealData()
   }, [])
 
@@ -957,6 +937,131 @@ const FuelTheft = () => {
     setFuelLevelData(dataPoints)
   }, [allEvents, selectedVehicleFilter, chartTimePeriod])
 
+  // Checkbox selection functions
+  const handleSelectRecord = (recordId: string) => {
+    const newSelected = new Set(selectedRecords)
+    if (newSelected.has(recordId)) {
+      newSelected.delete(recordId)
+    } else {
+      newSelected.add(recordId)
+    }
+    setSelectedRecords(newSelected)
+    setSelectAll(newSelected.size === filteredEvents.length && filteredEvents.length > 0)
+  }
+
+  const handleSelectAll = () => {
+    if (selectAll) {
+      setSelectedRecords(new Set())
+      setSelectAll(false)
+    } else {
+      const allIds = new Set(filteredEvents.map((event) => event.id))
+      setSelectedRecords(allIds)
+      setSelectAll(true)
+    }
+  }
+
+  // Download selected records
+  const downloadSelectedCSV = () => {
+    const selectedEvents = filteredEvents.filter((e) => selectedRecords.has(e.id))
+    if (selectedEvents.length === 0) {
+      toast({
+        title: "No Records Selected",
+        description: "Please select records to download.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const headers = [
+      "ID",
+      "Vehicle",
+      "Event Type",
+      "Timestamp",
+      "Previous Level (L)",
+      "Current Level (L)",
+      "Change Amount (L)",
+      "Latitude",
+      "Longitude",
+      "Speed",
+      "Ignition",
+    ]
+    const rows = selectedEvents.map((e) =>
+      [
+        e.id,
+        `"${e.vehicle.license_plate}"`,
+        `"${e.event_type}"`,
+        e.timestamp,
+        e.fuel_change.before_liters,
+        e.fuel_change.after_liters,
+        e.fuel_change.amount_liters,
+        e.location.latitude,
+        e.location.longitude,
+        e.vehicle_state.speed,
+        e.vehicle_state.ignition ? "Yes" : "No",
+      ].join(","),
+    )
+    const csvContent = [headers.join(","), ...rows].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `selected-fuel-events-${new Date().toISOString().split("T")[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast({
+      title: "Download Complete",
+      description: `Downloaded ${selectedEvents.length} selected records.`,
+    })
+  }
+
+  // Download all records (rename existing function)
+  const downloadAllCSV = () => {
+    const headers = [
+      "ID",
+      "Vehicle",
+      "Event Type",
+      "Timestamp",
+      "Previous Level (L)",
+      "Current Level (L)",
+      "Change Amount (L)",
+      "Latitude",
+      "Longitude",
+      "Speed",
+      "Ignition",
+    ]
+    const rows = filteredEvents.map((e) =>
+      [
+        e.id,
+        `"${e.vehicle.license_plate}"`,
+        `"${e.event_type}"`,
+        e.timestamp,
+        e.fuel_change.before_liters,
+        e.fuel_change.after_liters,
+        e.fuel_change.amount_liters,
+        e.location.latitude,
+        e.location.longitude,
+        e.vehicle_state.speed,
+        e.vehicle_state.ignition ? "Yes" : "No",
+      ].join(","),
+    )
+    const csvContent = [headers.join(","), ...rows].join("\n")
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `all-fuel-events-${new Date().toISOString().split("T")[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    toast({
+      title: "Download Complete",
+      description: `Downloaded ${filteredEvents.length} records.`,
+    })
+  }
+
   // Helper Functions
   const getEventIcon = (type: string) => {
     switch (type) {
@@ -1083,64 +1188,9 @@ const FuelTheft = () => {
     setFilteredEvents(tableEvents)
   }
 
-  // CSV download
-  const downloadCSV = () => {
-    const headers = [
-      "ID",
-      "Vehicle",
-      "Event Type",
-      "Timestamp",
-      "Previous Level (L)",
-      "Current Level (L)",
-      "Change Amount (L)",
-      "Latitude",
-      "Longitude",
-      "Speed",
-      "Ignition",
-    ]
-    const rows = filteredEvents.map((e) =>
-      [
-        e.id,
-        `"${e.vehicle.license_plate}"`,
-        `"${e.event_type}"`,
-        e.timestamp,
-        e.fuel_change.before_liters,
-        e.fuel_change.after_liters,
-        e.fuel_change.amount_liters,
-        e.location.latitude,
-        e.location.longitude,
-        e.vehicle_state.speed,
-        e.vehicle_state.ignition ? "Yes" : "No",
-      ].join(","),
-    )
-    const csvContent = [headers.join(","), ...rows].join("\n")
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = `fuel-events-${new Date().toISOString().split("T")[0]}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-    toast({ title: "Download Complete", description: `Downloaded ${filteredEvents.length} records.` })
-  }
-
-  // Handle page change
-  const handlePageChange = (page: number) => {
-    if (!isUsingDemoData) {
-      fetchTableData(page)
-    }
-  }
-
+  // Calculate theft and fill event counts
   const theftCount = filteredEvents.filter((e) => e.event_type === "theft").length
   const fillCount = filteredEvents.filter((e) => e.event_type === "fill").length
-
-  // Find max fuel level for chart
-  const maxFuelLevel = useMemo(() => {
-    if (!fuelLevelData.length) return 300
-    return Math.max(...fuelLevelData.map((d) => d.level)) * 1.2
-  }, [fuelLevelData])
 
   // Show loading screen
   if (loading) {
@@ -1148,7 +1198,7 @@ const FuelTheft = () => {
       <SidebarProvider>
         <div className="min-h-screen flex w-full bg-background">
           <AppSidebar />
-          <main className="flex-1 p-6 flex items-center justify-center">
+          <main className="flex-1 p-4 sm:p-6 flex items-center justify-center">
             <div className="flex items-center justify-center h-64">
               <div className="text-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -1166,46 +1216,23 @@ const FuelTheft = () => {
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
         <AppSidebar />
-        <main className="flex-1 p-6 space-y-6">
-          <div className="flex items-center justify-between">
+        <main className="flex-1 p-4 sm:p-6 space-y-4 sm:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-                <ShieldAlert className="h-8 w-8 text-destructive" />
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2">
+                <ShieldAlert className="h-6 w-6 sm:h-8 sm:w-8 text-destructive" />
                 Fuel Analysis Detection
               </h1>
-              <p className="text-muted-foreground">Monitor and detect suspicious fuel activities across your fleet</p>
+              <p className="text-muted-foreground text-sm sm:text-base">
+                Monitor and detect suspicious fuel activities across your fleet
+              </p>
               {/* Debug info */}
               <p className="text-xs text-muted-foreground mt-1">
                 {isUsingDemoData ? "📊 Demo Data Mode" : "🔗 Live Data Mode"} - {allEvents.length} chart events,{" "}
                 {tableEvents.length} table events, {vehicles.length} vehicles
-       
               </p>
             </div>
-            <div className="flex gap-2">
-           
-              <Button onClick={fetchAllEventsForChart} variant="outline" disabled={chartLoading}>
-                {chartLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Chart Data
-              </Button>
-              <Button
-                onClick={() => fetchTableData(paginationState.currentPage)}
-                variant="outline"
-                disabled={tableLoading}
-              >
-                {tableLoading ? (
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                ) : (
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                )}
-                Refresh Table
-              </Button>
-            </div>
           </div>
-
 
           {error && !isUsingDemoData && (
             <Card className="border-orange-500">
@@ -1221,14 +1248,14 @@ const FuelTheft = () => {
           )}
 
           {/* Summary Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Events</CardTitle>
                 <ShieldAlert className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{filteredEvents.length}</div>
+                <div className="text-xl sm:text-2xl font-bold">{filteredEvents.length}</div>
                 <p className="text-xs text-muted-foreground">
                   {selectedVehicleFilter === "all" ? "All vehicles" : `Vehicle: ${selectedVehicleFilter}`}
                 </p>
@@ -1240,7 +1267,7 @@ const FuelTheft = () => {
                 <AlertTriangle className="h-4 w-4 text-destructive" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-destructive">{theftCount}</div>
+                <div className="text-xl sm:text-2xl font-bold text-destructive">{theftCount}</div>
               </CardContent>
             </Card>
             <Card>
@@ -1249,7 +1276,7 @@ const FuelTheft = () => {
                 <Fuel className="h-4 w-4 text-green-500" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-500">{fillCount}</div>
+                <div className="text-xl sm:text-2xl font-bold text-green-500">{fillCount}</div>
               </CardContent>
             </Card>
             <Card>
@@ -1258,7 +1285,7 @@ const FuelTheft = () => {
                 <ShieldAlert className="h-4 w-4 text-primary" />
               </CardHeader>
               <CardContent>
-                <div className="text-lg font-bold text-primary">
+                <div className="text-lg sm:text-xl font-bold text-primary">
                   {paginationState.currentPage} of {paginationState.totalPages}
                 </div>
                 <p className="text-xs text-muted-foreground">Page size: {paginationState.pageSize}</p>
@@ -1268,18 +1295,21 @@ const FuelTheft = () => {
 
           {/* Fuel Level Chart */}
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>
-                Fuel Level Timeline
-                <span className="text-sm font-normal text-muted-foreground ml-2">
-                  ({chartTimePeriod === "day" ? "Last 24 hours" : "Last 7 days"})
-                </span>
-                {chartLoading && <span className="text-xs text-orange-600 ml-2">(Loading chart data...)</span>}
-            
-              </CardTitle>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="time-period">Time Period:</Label>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-lg sm:text-xl">
+                  Fuel Levels Timeline
+                  <span className="text-sm font-normal text-muted-foreground ml-2">
+                    ({chartTimePeriod === "day" ? "Last 24 hours" : "Last 7 days"})
+                  </span>
+                  {chartLoading && <span className="text-xs text-orange-600 ml-2">(Loading chart data...)</span>}
+                </CardTitle>
+              </div>
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <Label htmlFor="time-period" className="text-sm">
+                    Time Period:
+                  </Label>
                   <Select value={chartTimePeriod} onValueChange={(v: TimePeriod) => setChartTimePeriod(v)}>
                     <SelectTrigger className="w-32">
                       <SelectValue />
@@ -1290,10 +1320,12 @@ const FuelTheft = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="chart-vehicle">Vehicle:</Label>
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                  <Label htmlFor="chart-vehicle" className="text-sm">
+                    Vehicle:
+                  </Label>
                   <Select value={selectedVehicleFilter} onValueChange={setSelectedVehicleFilter}>
-                    <SelectTrigger className="w-48">
+                    <SelectTrigger className="w-full sm:w-48">
                       <SelectValue placeholder="All Vehicles" />
                     </SelectTrigger>
                     <SelectContent>
@@ -1306,6 +1338,15 @@ const FuelTheft = () => {
                     </SelectContent>
                   </Select>
                 </div>
+                <Button onClick={fetchAllEventsForChart} variant="outline" size="sm" disabled={chartLoading}>
+                  {chartLoading ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                  )}
+                  <span className="hidden sm:inline">Refresh Chart</span>
+                  <span className="sm:hidden">Refresh</span>
+                </Button>
               </div>
             </CardHeader>
             <CardContent className="p-6">
@@ -1321,7 +1362,13 @@ const FuelTheft = () => {
                     <XAxis dataKey="displayTime" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
                     <YAxis
                       tick={{ fontSize: 12 }}
-                      domain={[0, maxFuelLevel]}
+                      domain={[
+                        0,
+                        Math.max(
+                          250,
+                          ...fuelLevelData.map((d) => d.level || 0)
+                        ),
+                      ]}
                       label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
                     />
                     <Tooltip content={<CustomTooltip />} />
@@ -1365,7 +1412,6 @@ const FuelTheft = () => {
                   <div className="w-3 h-3 rounded-full bg-green-500"></div>
                   <span className="text-sm">Fill</span>
                 </div>
-          
               </div>
             </div>
           </Card>
@@ -1376,9 +1422,11 @@ const FuelTheft = () => {
               <CardTitle>Advanced Filters</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
-                  <Label htmlFor="vehicle-filter">Filter by Vehicle</Label>
+                  <Label htmlFor="vehicle-filter" className="text-sm">
+                    Filter by Vehicle
+                  </Label>
                   <Select value={selectedVehicleFilter} onValueChange={setSelectedVehicleFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="All vehicles" />
@@ -1394,7 +1442,9 @@ const FuelTheft = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="start-date">Start Date</Label>
+                  <Label htmlFor="start-date" className="text-sm">
+                    Start Date
+                  </Label>
                   <Input
                     id="start-date"
                     type="datetime-local"
@@ -1403,7 +1453,9 @@ const FuelTheft = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="end-date">End Date</Label>
+                  <Label htmlFor="end-date" className="text-sm">
+                    End Date
+                  </Label>
                   <Input
                     id="end-date"
                     type="datetime-local"
@@ -1412,7 +1464,9 @@ const FuelTheft = () => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="report-period">Period</Label>
+                  <Label htmlFor="report-period" className="text-sm">
+                    Period
+                  </Label>
                   <Select
                     value={reportPeriod}
                     onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
@@ -1428,7 +1482,9 @@ const FuelTheft = () => {
                   </Select>
                 </div>
                 <div>
-                  <Label htmlFor="event-type">Event Type</Label>
+                  <Label htmlFor="event-type" className="text-sm">
+                    Event Type
+                  </Label>
                   <Select value={eventTypeFilter} onValueChange={setEventTypeFilter}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Events" />
@@ -1440,9 +1496,11 @@ const FuelTheft = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex gap-2 items-end">
-                  <Button onClick={handleFilter}>Apply Filters</Button>
-                  <Button variant="outline" onClick={clearFilters}>
+                <div className="flex flex-col sm:flex-row gap-2 items-end">
+                  <Button onClick={handleFilter} size="sm" className="w-full sm:w-auto">
+                    Apply Filters
+                  </Button>
+                  <Button variant="outline" onClick={clearFilters} size="sm" className="w-full sm:w-auto">
                     Clear
                   </Button>
                 </div>
@@ -1453,281 +1511,205 @@ const FuelTheft = () => {
           {/* Events Table */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>
-                  Fuel Events (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
-                  {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
-                  {tableLoading && (
-                    <span className="text-sm font-normal text-orange-600 ml-2">(Loading table data...)</span>
-                  )}
-                  {isUsingDemoData && <span className="text-sm font-normal text-blue-600 ml-2">(Demo Data)</span>}
-                </CardTitle>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg sm:text-xl">
+                    Fuel Events
+                    <span className="text-sm font-normal text-muted-foreground block sm:inline sm:ml-2">
+                      (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
+                      {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
+                    </span>
+                    {tableLoading && (
+                      <span className="text-sm font-normal text-orange-600 block sm:inline sm:ml-2">
+                        (Loading table data...)
+                      </span>
+                    )}
+                    {isUsingDemoData && (
+                      <span className="text-sm font-normal text-blue-600 block sm:inline sm:ml-2">(Demo Data)</span>
+                    )}
+                  </CardTitle>
+                </div>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Button
+                    onClick={() => fetchTableData(paginationState.currentPage)}
+                    variant="outline"
+                    size="sm"
+                    disabled={tableLoading}
+                  >
+                    {tableLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                    )}
+                    <span className="hidden sm:inline">Refresh Table</span>
+                    <span className="sm:hidden">Refresh</span>
+                  </Button>
+                  <Button onClick={downloadAllCSV} variant="outline" size="sm" disabled={filteredEvents.length === 0}>
+                    <Download className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Download All</span>
+                    <span className="sm:hidden">All</span>
+                  </Button>
+                  <Button
+                    onClick={downloadSelectedCSV}
+                    variant="outline"
+                    size="sm"
+                    disabled={selectedRecords.size === 0}
+                  >
+                    <Download className="h-4 w-4 mr-2" />
+                    <span className="hidden sm:inline">Download Selected ({selectedRecords.size})</span>
+                    <span className="sm:hidden">Selected ({selectedRecords.size})</span>
+                  </Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
-              {tableLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-4 text-muted-foreground">Loading table data...</p>
-                  </div>
-                </div>
-              ) : filteredEvents.length > 0 ? (
-                <ScrollArea className="h-[600px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Event</TableHead>
-                        <TableHead>Vehicle</TableHead>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Fuel Change</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredEvents.map((event) => (
-                        <TableRow key={event.id} className="hover:bg-muted/50">
-                          <TableCell>
-                            <div className="flex items-center gap-2">
-                              {getEventIcon(event.event_type)}
-                              <span className="font-medium">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-12">
+                      <input
+                        type="checkbox"
+                        checked={selectAll}
+                        onChange={handleSelectAll}
+                        className="rounded border-gray-300"
+                      />
+                    </TableHead>
+                    <TableHead>Event</TableHead>
+                    <TableHead>Vehicle</TableHead>
+                    <TableHead className="hidden sm:table-cell">Date and Time</TableHead>
+                    <TableHead>Fuel Change</TableHead>
+                    <TableHead className="hidden md:table-cell">Location</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredEvents.map((event) => (
+                    <TableRow key={event.id} className="hover:bg-muted/50">
+                      <TableCell>
+                        <input
+                          type="checkbox"
+                          checked={selectedRecords.has(event.id)}
+                          onChange={() => handleSelectRecord(event.id)}
+                          className="rounded border-gray-300"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {getEventIcon(event.event_type)}
+                          <span className="font-medium text-sm">
+                            {event.event_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-medium text-sm">{event.vehicle.license_plate}</TableCell>
+                      <TableCell className="font-mono text-xs hidden sm:table-cell">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-col">
+                          <span
+                            className={`font-semibold text-sm ${
+                              event.event_type === "theft" ? "text-destructive" : "text-green-600"
+                            }`}
+                          >
+                            {event.event_type === "theft" ? "-" : "+"}
+                            {Math.abs(event.fuel_change.amount_liters)}L
+                          </span>
+                          <span className="text-xs text-muted-foreground">
+                            {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
+                          </span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="font-mono text-xs hidden md:table-cell">
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="outline" size="sm" onClick={() => setSelectedEvent(event)}>
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle className="flex items-center gap-2">
+                                {getEventIcon(event.event_type)}
+                                Event Details -{" "}
                                 {event.event_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-medium">{event.vehicle.license_plate}</TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {new Date(event.timestamp).toLocaleString()}
-                          </TableCell>
-                          <TableCell>
-                            <div className="flex flex-col">
-                              <span
-                                className={`font-semibold ${
-                                  event.event_type === "theft" ? "text-destructive" : "text-green-600"
-                                }`}
-                              >
-                                {event.event_type === "theft" ? "-" : "+"}
-                                {Math.abs(event.fuel_change.amount_liters)}L
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
-                              </span>
-                            </div>
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button variant="outline" size="sm" onClick={() => setSelectedEvent(event)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="max-w-2xl">
-                                <DialogHeader>
-                                  <DialogTitle className="flex items-center gap-2">
-                                    {getEventIcon(event.event_type)}
-                                    Event Details -{" "}
-                                    {event.event_type.replace("_", " ").replace(/\b\w/g, (l) => l.toUpperCase())}
-                                  </DialogTitle>
-                                </DialogHeader>
-                                {selectedEvent && (
-                                  <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <Label className="text-sm font-medium">Vehicle</Label>
-                                        <p className="text-sm">{selectedEvent.vehicle.license_plate}</p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Timestamp</Label>
-                                        <p className="text-sm font-mono">
-                                          {new Date(selectedEvent.timestamp).toLocaleString()}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Previous Level</Label>
-                                        <p className="text-sm">{selectedEvent.fuel_change.before_liters}L</p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Current Level</Label>
-                                        <p className="text-sm">{selectedEvent.fuel_change.after_liters}L</p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Change Amount</Label>
-                                        <p
-                                          className={`text-sm font-semibold ${
-                                            selectedEvent.event_type === "theft" ? "text-destructive" : "text-green-600"
-                                          }`}
-                                        >
-                                          {selectedEvent.event_type === "theft" ? "-" : "+"}
-                                          {Math.abs(selectedEvent.fuel_change.amount_liters)}L
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <Label className="text-sm font-medium">Event Type</Label>
-                                        <Badge variant={getSeverityBadge(selectedEvent.event_type) as any}>
-                                          {selectedEvent.event_type
-                                            .replace("_", " ")
-                                            .replace(/\b\w/g, (l) => l.toUpperCase())}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <Label className="text-sm font-medium">Location</Label>
-                                      <p className="text-sm font-mono">
-                                        {selectedEvent.location.latitude.toFixed(6)},{" "}
-                                        {selectedEvent.location.longitude.toFixed(6)}
-                                      </p>
-                                    </div>
-                                    <div>
-                                      <Label className="text-sm font-medium">Vehicle State</Label>
-                                      <div className="flex gap-2 mt-1">
-                                        <Badge variant={selectedEvent.vehicle_state.ignition ? "default" : "secondary"}>
-                                          {selectedEvent.vehicle_state.ignition ? "Ignition ON" : "Ignition OFF"}
-                                        </Badge>
-                                        <Badge variant="outline">Speed: {selectedEvent.vehicle_state.speed} km/h</Badge>
-                                        <Badge
-                                          variant={selectedEvent.vehicle_state.stationary ? "secondary" : "outline"}
-                                        >
-                                          {selectedEvent.vehicle_state.stationary ? "Stationary" : "Moving"}
-                                        </Badge>
-                                      </div>
-                                    </div>
+                              </DialogTitle>
+                            </DialogHeader>
+                            {selectedEvent && (
+                              <div className="space-y-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                  <div>
+                                    <Label className="text-sm font-medium">Vehicle</Label>
+                                    <p className="text-sm">{selectedEvent.vehicle.license_plate}</p>
                                   </div>
-                                )}
-                              </DialogContent>
-                            </Dialog>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              ) : (
-                <div className="h-[400px] flex items-center justify-center border border-dashed rounded-lg">
-                  <div className="text-center text-muted-foreground">
-                    <p>No fuel events available</p>
-                    <p className="text-sm">
-                      {tableEvents.length === 0
-                        ? "Click 'Load Demo Data' to see sample events"
-                        : "Try adjusting your filters"}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* API-based Pagination */}
-              {paginationState.totalPages > 1 && !isUsingDemoData && (
-                <div className="mt-4 flex items-center justify-between">
-                  <div className="text-sm text-muted-foreground">
-                    Page {paginationState.currentPage} of {paginationState.totalPages} ({paginationState.totalItems}{" "}
-                    total records, {paginationState.pageSize} per page)
-                  </div>
-                  <Pagination>
-                    <PaginationContent>
-                      <PaginationItem>
-                        <PaginationPrevious
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            if (paginationState.hasPrevious) handlePageChange(paginationState.currentPage - 1)
-                          }}
-                          className={!paginationState.hasPrevious ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-
-                      {/* Show first page */}
-                      {paginationState.currentPage > 3 && (
-                        <>
-                          <PaginationItem>
-                            <PaginationLink
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handlePageChange(1)
-                              }}
-                            >
-                              1
-                            </PaginationLink>
-                          </PaginationItem>
-                          {paginationState.currentPage > 4 && <span className="px-2">...</span>}
-                        </>
-                      )}
-
-                      {/* Show pages around current page */}
-                      {Array.from({ length: Math.min(5, paginationState.totalPages) }, (_, i) => {
-                        const pageNum =
-                          Math.max(1, Math.min(paginationState.totalPages - 4, paginationState.currentPage - 2)) + i
-                        if (pageNum <= paginationState.totalPages) {
-                          return (
-                            <PaginationItem key={pageNum}>
-                              <PaginationLink
-                                href="#"
-                                onClick={(e) => {
-                                  e.preventDefault()
-                                  handlePageChange(pageNum)
-                                }}
-                                isActive={pageNum === paginationState.currentPage}
-                              >
-                                {pageNum}
-                              </PaginationLink>
-                            </PaginationItem>
-                          )
-                        }
-                        return null
-                      })}
-
-                      {/* Show last page */}
-                      {paginationState.currentPage < paginationState.totalPages - 2 && (
-                        <>
-                          {paginationState.currentPage < paginationState.totalPages - 3 && (
-                            <span className="px-2">...</span>
-                          )}
-                          <PaginationItem>
-                            <PaginationLink
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handlePageChange(paginationState.totalPages)
-                              }}
-                            >
-                              {paginationState.totalPages}
-                            </PaginationLink>
-                          </PaginationItem>
-                        </>
-                      )}
-
-                      <PaginationItem>
-                        <PaginationNext
-                          href="#"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            if (paginationState.hasNext) handlePageChange(paginationState.currentPage + 1)
-                          }}
-                          className={!paginationState.hasNext ? "pointer-events-none opacity-50" : ""}
-                        />
-                      </PaginationItem>
-                    </PaginationContent>
-                  </Pagination>
-                </div>
-              )}
-
-              {/* Download Button */}
-              <div className="mt-4 flex justify-end">
-                <Button
-                  onClick={downloadCSV}
-                  className="flex items-center gap-2"
-                  disabled={filteredEvents.length === 0}
-                >
-                  <Download className="h-4 w-4" />
-                  Download CSV Report ({filteredEvents.length} records)
-                </Button>
-              </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Date and Time</Label>
+                                    <p className="text-sm font-mono">
+                                      {new Date(selectedEvent.timestamp).toLocaleString()}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Previous Level</Label>
+                                    <p className="text-sm">{selectedEvent.fuel_change.before_liters}L</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Current Level</Label>
+                                    <p className="text-sm">{selectedEvent.fuel_change.after_liters}L</p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Change Amount</Label>
+                                    <p
+                                      className={`text-sm font-semibold ${
+                                        selectedEvent.event_type === "theft" ? "text-destructive" : "text-green-600"
+                                      }`}
+                                    >
+                                      {selectedEvent.event_type === "theft" ? "-" : "+"}
+                                      {Math.abs(selectedEvent.fuel_change.amount_liters)}L
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <Label className="text-sm font-medium">Event Type</Label>
+                                    <Badge variant={getSeverityBadge(selectedEvent.event_type) as any}>
+                                      {selectedEvent.event_type
+                                        .replace("_", " ")
+                                        .replace(/\b\w/g, (l) => l.toUpperCase())}
+                                    </Badge>
+                                  </div>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium">Location</Label>
+                                  <p className="text-sm font-mono">
+                                    {selectedEvent.location.latitude.toFixed(6)},{" "}
+                                    {selectedEvent.location.longitude.toFixed(6)}
+                                  </p>
+                                </div>
+                                <div>
+                                  <Label className="text-sm font-medium">Vehicle State</Label>
+                                  <div className="flex flex-wrap gap-2 mt-1">
+                                    <Badge variant={selectedEvent.vehicle_state.ignition ? "default" : "secondary"}>
+                                      {selectedEvent.vehicle_state.ignition ? "Ignition ON" : "Ignition OFF"}
+                                    </Badge>
+                                    <Badge variant="outline">Speed: {selectedEvent.vehicle_state.speed} km/h</Badge>
+                                    <Badge variant={selectedEvent.vehicle_state.stationary ? "secondary" : "outline"}>
+                                      {selectedEvent.vehicle_state.stationary ? "Stationary" : "Moving"}
+                                    </Badge>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </CardContent>
           </Card>
         </main>

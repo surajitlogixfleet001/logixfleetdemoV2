@@ -1,8 +1,17 @@
 "use client"
 
-import { Home, Car, Fuel, ShieldAlert, Bell, MessageSquare, Phone, LogOut, ChevronDown, Building2 } from "lucide-react"
-import { useNavigate } from "react-router-dom"
-import { Link } from "react-router-dom"
+import {
+  Home,
+  Car,
+  Fuel,
+  ShieldAlert,
+  Bell,
+  MessageSquare,
+  Phone,
+  LogOut,
+  ChevronDown,
+} from "lucide-react"
+import { useNavigate, useLocation, Link } from "react-router-dom"
 import { useState } from "react"
 import {
   Sidebar,
@@ -24,7 +33,6 @@ const navigationItems = [
     title: "Home",
     icon: Home,
     url: "/dashboard",
-    isActive: true,
   },
   {
     title: "Vehicles",
@@ -45,6 +53,7 @@ const navigationItems = [
 
 export function AppSidebar() {
   const navigate = useNavigate()
+  const location = useLocation()
   const [notificationOpen, setNotificationOpen] = useState(false)
 
   const handleLogout = () => {
@@ -53,18 +62,18 @@ export function AppSidebar() {
     navigate("/login")
   }
 
+  const isActive = (url: string) => location.pathname === url
+
   return (
     <Sidebar className="border-r border-border/40">
       <SidebarHeader className="px-4 py-3 border-b border-border/40">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 group">
-              <div className="relative">
-                <div className="w-100 h-22">
-                  <img src="/si3.png" alt="logo" className="md:h-full object-cover" />
-                </div>
-              </div>
-              <span className="text-3xl font-bold text-indigo-700"></span>
+            <div className="relative w-24 h-10">
+              <img src="/si3.png" alt="logo" className="h-full object-contain" />
             </div>
+            <span className="text-3xl font-bold text-indigo-700"></span>
+          </div>
           <ChevronDown className="h-3 w-3 text-muted-foreground" />
         </div>
       </SidebarHeader>
@@ -78,20 +87,18 @@ export function AppSidebar() {
                   <SidebarMenuButton
                     asChild
                     className={`h-8 px-3 text-sm font-light rounded-md transition-colors ${
-                      item.isActive
-                        ? "bg-blue-50 text-blue-600 hover:bg-blue-50 hover:text-blue-600"
+                      isActive(item.url)
+                        ? "bg-blue-100 text-blue-700 font-semibold"
                         : "text-gray-700 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                   >
                     <Link to={item.url} className="flex items-center gap-3">
                       <item.icon className="h-4 w-4 flex-shrink-0" />
-                      <span className="font-light">{item.title}</span>
+                      <span>{item.title}</span>
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-
-              
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -100,16 +107,17 @@ export function AppSidebar() {
           <SidebarGroupLabel className="px-3 text-xs font-light text-gray-500 mb-1">System</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0">
-              {/* Notifications with SMS/WhatsApp */}
               <SidebarMenuItem>
                 <Collapsible open={notificationOpen} onOpenChange={setNotificationOpen}>
                   <CollapsibleTrigger asChild>
                     <SidebarMenuButton className="h-8 px-3 text-sm font-light text-gray-700 hover:text-gray-900 hover:bg-gray-50 rounded-md transition-colors">
                       <div className="flex items-center gap-3 w-full">
                         <Bell className="h-4 w-4 flex-shrink-0" />
-                        <span className="font-light">Notifications</span>
+                        <span>Notifications</span>
                         <ChevronDown
-                          className={`h-3 w-3 ml-auto transition-transform ${notificationOpen ? "rotate-180" : ""}`}
+                          className={`h-3 w-3 ml-auto transition-transform ${
+                            notificationOpen ? "rotate-180" : ""
+                          }`}
                         />
                       </div>
                     </SidebarMenuButton>
@@ -118,24 +126,29 @@ export function AppSidebar() {
                     <div className="ml-7 mt-1 space-y-0">
                       <SidebarMenuButton
                         asChild
-                        className="h-7 px-3 text-xs font-light text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors"
+                        className={`h-7 px-3 text-xs font-light rounded-md transition-colors ${
+                          isActive("/dashboard/sms-notifications")
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        }`}
                       >
-                        <Link to ="/dashboard/sms-notifications" className="flex items-center gap-2">
+                        <Link to="/dashboard/sms-notifications" className="flex items-center gap-2">
                           <MessageSquare className="h-3 w-3" />
-                          <span className="font-light">SMS Alerts</span>
+                          <span>SMS Alerts</span>
                         </Link>
                       </SidebarMenuButton>
+
                       <SidebarMenuButton
                         asChild
-                        className="h-7 px-3 text-xs font-light text-gray-600 hover:text-gray-800 hover:bg-gray-50 rounded-md transition-colors"
+                        className={`h-7 px-3 text-xs font-light rounded-md transition-colors ${
+                          isActive("/dashboard/whatsapp")
+                            ? "bg-blue-50 text-blue-700"
+                            : "text-gray-600 hover:text-gray-800 hover:bg-gray-50"
+                        }`}
                       >
-                        <Link to="/dashboard/whatsapp"
-                       
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2"
-                        >
+                        <Link to="/dashboard/whatsapp" className="flex items-center gap-2">
                           <Phone className="h-3 w-3" />
-                          <span className="font-light">WhatsApp</span>
+                          <span>WhatsApp</span>
                         </Link>
                       </SidebarMenuButton>
                     </div>

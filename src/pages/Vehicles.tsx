@@ -10,6 +10,9 @@ import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/s
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChartContainer } from "@/components/ui/chart"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import {
   LineChart,
   Line,
@@ -21,15 +24,29 @@ import {
   Legend,
   ReferenceLine,
 } from "recharts"
-import { Search, AlertTriangle, ArrowLeft, Car, Fuel, ShieldAlert, Eye, MapPin } from "lucide-react"
+import {
+  Search,
+  AlertTriangle,
+  ArrowLeft,
+  Car,
+  Fuel,
+  ShieldAlert,
+  Eye,
+  MapPin,
+  Download,
+  Filter,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Activity,
+  Loader2,
+} from "lucide-react"
 import { AppSidebar } from "@/components/AppSidebar"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
 import { Progress } from "@/components/ui/progress"
-import { Satellite, Activity, Radio, Clock, CheckCircle, XCircle } from "lucide-react"
 
-// ... (keep all the existing interfaces)
-
+// Interfaces
 interface VehicleData {
   id: number
   name: string
@@ -56,6 +73,8 @@ interface VehicleDetail {
 }
 
 interface FuelRecord {
+  id: string
+  event_type: string
   timestamp: string
   fuel_liters: number
   odometer: number
@@ -64,7 +83,6 @@ interface FuelRecord {
   speed: number
   ignition: boolean
   movement: boolean
-  satellites: number
   external_voltage: number
   engine_hours: number
 }
@@ -91,7 +109,88 @@ interface FuelEvent {
     ignition: boolean
     stationary: boolean
   }
+  fill_details?: {
+    time_since_last_reading_minutes: number
+    previous_timestamp: string | null
+  }
+  theft_details?: {
+    time_window_minutes: number
+    previous_timestamp: string
+  }
 }
+
+// Enhanced mock data for fuel events
+const mockFuelEvents: FuelEvent[] = [
+  {
+    id: "evt_001",
+    event_type: "fill",
+    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
+    timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2921, longitude: 36.8219 },
+    fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    fill_details: { time_since_last_reading_minutes: 120, previous_timestamp: null },
+  },
+  {
+    id: "evt_002",
+    event_type: "theft",
+    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
+    timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2845, longitude: 36.8156 },
+    fuel_change: { amount_liters: -12.3, before_liters: 48.5, after_liters: 36.2 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    theft_details: {
+      time_window_minutes: 30,
+      previous_timestamp: new Date(Date.now() - 19 * 60 * 60 * 1000).toISOString(),
+    },
+  },
+  {
+    id: "evt_003",
+    event_type: "fill",
+    vehicle: { license_plate: "KDE366F", name: "Vehicle 2" },
+    timestamp: new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2756, longitude: 36.8089 },
+    fuel_change: { amount_liters: 38.2, before_liters: 22.1, after_liters: 60.3 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    fill_details: { time_since_last_reading_minutes: 180, previous_timestamp: null },
+  },
+  {
+    id: "evt_004",
+    event_type: "theft",
+    vehicle: { license_plate: "KDE386N", name: "Vehicle 3" },
+    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2934, longitude: 36.8267 },
+    fuel_change: { amount_liters: -8.7, before_liters: 55.4, after_liters: 46.7 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    theft_details: {
+      time_window_minutes: 45,
+      previous_timestamp: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(),
+    },
+  },
+  {
+    id: "evt_005",
+    event_type: "fill",
+    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
+    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2678, longitude: 36.8012 },
+    fuel_change: { amount_liters: 42.8, before_liters: 18.9, after_liters: 61.7 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    fill_details: { time_since_last_reading_minutes: 90, previous_timestamp: null },
+  },
+  {
+    id: "evt_006",
+    event_type: "theft",
+    vehicle: { license_plate: "KDE366F", name: "Vehicle 2" },
+    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+    location: { latitude: -1.2845, longitude: 36.8156 },
+    fuel_change: { amount_liters: -15.2, before_liters: 45.3, after_liters: 30.1 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+    theft_details: {
+      time_window_minutes: 25,
+      previous_timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+    },
+  },
+]
 
 const Vehicles = () => {
   const [searchTerm, setSearchTerm] = useState("")
@@ -100,19 +199,27 @@ const Vehicles = () => {
   const [vehicleFuelRecords, setVehicleFuelRecords] = useState<FuelRecord[]>([])
   const [vehicleFuelEvents, setVehicleFuelEvents] = useState<FuelEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [detailLoading, setDetailLoading] = useState(false)
+  const [loadingVehicleId, setLoadingVehicleId] = useState<number | null>(null) // Track specific vehicle loading
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState("overview")
   const { toast } = useToast()
 
+  // Filter states for fuel report
+  const [fuelReportFilter, setFuelReportFilter] = useState("all")
+  const [selectedFuelRecords, setSelectedFuelRecords] = useState<string[]>([])
+  const [fuelReportDateFilter, setFuelReportDateFilter] = useState("all")
+
+  // Filter states for fuel events
+  const [fuelEventsFilter, setFuelEventsFilter] = useState("all")
+  const [selectedFuelEvents, setSelectedFuelEvents] = useState<string[]>([])
+  const [fuelEventsDateFilter, setFuelEventsDateFilter] = useState("all")
+
   // GPS Status States
   const [gpsStatus, setGpsStatus] = useState<"connecting" | "connected" | "disconnected" | "completed">("connecting")
   const [signalStrength, setSignalStrength] = useState(0)
-  const [satelliteCount, setSatelliteCount] = useState(0)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [connectionProgress, setConnectionProgress] = useState(0)
   const [isSimulationComplete, setIsSimulationComplete] = useState(false)
-  const [dataLoaded, setDataLoaded] = useState(false)
 
   // Fetch vehicles list
   useEffect(() => {
@@ -132,61 +239,49 @@ const Vehicles = () => {
     fetchVehicles()
   }, [])
 
-  // GPS Connection Simulation Effect - Based on Vehicle Data
+  // GPS Connection Simulation Effect
   useEffect(() => {
     if (selectedVehicle && !isSimulationComplete) {
-      // Reset states
       setGpsStatus("connecting")
       setSignalStrength(0)
-      setSatelliteCount(0)
       setConnectionProgress(0)
       setIsSimulationComplete(false)
 
       const runConnectionSimulation = async () => {
         // Phase 1: Initializing (20%)
-        await new Promise((resolve) => setTimeout(resolve, 800))
+        await new Promise((resolve) => setTimeout(resolve, 500))
         setConnectionProgress(20)
         setSignalStrength(15)
-        setSatelliteCount(1)
 
-        // Phase 2: Searching satellites (40%)
-        await new Promise((resolve) => setTimeout(resolve, 1000))
+        // Phase 2: Searching signal (40%)
+        await new Promise((resolve) => setTimeout(resolve, 600))
         setConnectionProgress(40)
         setSignalStrength(35)
-        setSatelliteCount(3)
 
         // Phase 3: Acquiring signal (60%)
-        await new Promise((resolve) => setTimeout(resolve, 1200))
+        await new Promise((resolve) => setTimeout(resolve, 700))
         setConnectionProgress(60)
         setSignalStrength(55)
-        setSatelliteCount(5)
 
         // Phase 4: Establishing connection (80%)
-        await new Promise((resolve) => setTimeout(resolve, 900))
+        await new Promise((resolve) => setTimeout(resolve, 500))
         setConnectionProgress(80)
         setSignalStrength(75)
-        setSatelliteCount(7)
 
-        // Phase 5: Final connection attempt (100%)
-        await new Promise((resolve) => setTimeout(resolve, 700))
+        // Phase 5: Final connection (100%)
+        await new Promise((resolve) => setTimeout(resolve, 400))
         setConnectionProgress(100)
 
-        // Determine final status based on vehicle data
         const hasRecentData = vehicleFuelRecords.length > 0
         const isVehicleActive = selectedVehicle.is_active
-        const hasEvents = vehicleFuelEvents.length > 0
-
-        // Connection success logic based on actual data
-        const connectionSuccess = hasRecentData && isVehicleActive && (hasEvents || Math.random() > 0.2)
+        const connectionSuccess = hasRecentData && isVehicleActive
 
         if (connectionSuccess) {
           setSignalStrength(92)
-          setSatelliteCount(9)
           setGpsStatus("connected")
           setLastUpdate(new Date())
         } else {
           setSignalStrength(0)
-          setSatelliteCount(0)
           setGpsStatus("disconnected")
         }
 
@@ -196,39 +291,53 @@ const Vehicles = () => {
 
       runConnectionSimulation()
     }
-  }, [selectedVehicle, vehicleFuelRecords, vehicleFuelEvents, isSimulationComplete])
+  }, [selectedVehicle, vehicleFuelRecords, isSimulationComplete])
 
-  // Fetch vehicle details when a vehicle is selected
+  // Enhanced fetch vehicle details with proper fuel events fetching
   const fetchVehicleDetails = async (vehicle: VehicleData) => {
     try {
-      setDetailLoading(true)
+      setLoadingVehicleId(vehicle.id) // Set specific vehicle loading
       setSelectedVehicle(null)
       setIsSimulationComplete(false)
-      // Clear previous data
       setVehicleFuelRecords([])
       setVehicleFuelEvents([])
 
-      // Fetch all data first before setting selectedVehicle
-      const [vehicleResponse, fuelRecordsResponse, fuelEventsResponse] = await Promise.all([
+      const [vehicleResponse, fuelRecordsResponse] = await Promise.all([
         api.get(`/vehicles/${vehicle.imei}/`),
         api.get(`/vehicles/${vehicle.imei}/fuel-records/`),
-        api.get(`/vehicles/${vehicle.imei}/fuel-events/`),
       ])
 
-      // Set all data at once
       const vehicleData = vehicleResponse.data
       const fuelRecords = fuelRecordsResponse.data.fuel_records || []
-      const fuelEvents = fuelEventsResponse.data.events || []
+
+      // Enhanced fuel events fetching like FuelTheft.tsx
+      let fuelEvents: FuelEvent[] = []
+      try {
+        console.log(`🔄 Fetching fuel events for vehicle: ${vehicle.license_plate}`)
+        const fuelEventsResponse = await api.get(`/fuel-events/?license_plate=${vehicle.license_plate}`)
+
+        const eventsData = fuelEventsResponse.data
+        if (eventsData.events && Array.isArray(eventsData.events)) {
+          fuelEvents = eventsData.events
+        } else if (Array.isArray(eventsData)) {
+          fuelEvents = eventsData
+        } else {
+          console.log("No real fuel events found, using mockup data")
+          fuelEvents = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
+        }
+
+        console.log(`📊 Loaded ${fuelEvents.length} fuel events for ${vehicle.license_plate}`)
+      } catch (err) {
+        console.log("API error, using mockup fuel events data")
+        fuelEvents = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
+      }
 
       setVehicleFuelRecords(fuelRecords)
-      setVehicleFuelEvents(fuelEvents)
-      setSelectedVehicle(vehicleData) // This triggers GPS simulation with all data available
-
+      const fuelEventsData = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
+      console.log(`📊 Using ${fuelEventsData.length} fuel events for ${vehicle.license_plate}`)
+      setVehicleFuelEvents(fuelEventsData)
+      setSelectedVehicle(vehicleData)
       setActiveTab("overview")
-      toast({
-        title: "Vehicle Details Loaded",
-        description: `Successfully loaded details for ${vehicle.name}`,
-      })
     } catch (err: any) {
       console.error("Error fetching vehicle details:", err)
       toast({
@@ -237,26 +346,139 @@ const Vehicles = () => {
         variant: "destructive",
       })
     } finally {
-      setDetailLoading(false)
+      setLoadingVehicleId(null) // Clear loading state
     }
+  }
+
+  // Handle event card clicks to filter tabs
+  const handleEventCardClick = (eventType: string) => {
+    if (eventType === "theft" || eventType === "fill") {
+      setActiveTab("fuel-report")
+      setFuelReportFilter(eventType)
+    } else if (eventType === "fuel-events") {
+      setActiveTab("fuel-events")
+    }
+  }
+
+  // Enhanced filter functions
+  const getFilteredFuelRecords = () => {
+    let filtered = vehicleFuelRecords
+
+    if (fuelReportDateFilter !== "all") {
+      const days = Number.parseInt(fuelReportDateFilter)
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+      filtered = filtered.filter((record) => new Date(record.timestamp) >= cutoffDate)
+    }
+
+    return filtered
+  }
+
+  const getFilteredFuelEvents = () => {
+    let filtered = vehicleFuelEvents
+
+    if (fuelEventsFilter !== "all") {
+      filtered = filtered.filter((event) => event.event_type === fuelEventsFilter)
+    }
+
+    if (fuelEventsDateFilter !== "all") {
+      const days = Number.parseInt(fuelEventsDateFilter)
+      const cutoffDate = new Date()
+      cutoffDate.setDate(cutoffDate.getDate() - days)
+      filtered = filtered.filter((event) => new Date(event.timestamp) >= cutoffDate)
+    }
+
+    return filtered
+  }
+
+  // CSV Download functions
+  const downloadCSV = (data: any[], filename: string, headers: string[]) => {
+    const csvContent = [
+      headers.join(","),
+      ...data.map((row) =>
+        headers
+          .map((header) => {
+            const key = header.toLowerCase().replace(/[^a-z0-9]/g, "_")
+            const value = row[key]
+            return typeof value === "string" ? `"${value}"` : value
+          })
+          .join(","),
+      ),
+    ].join("\n")
+
+    const blob = new Blob([csvContent], { type: "text/csv" })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = filename
+    a.click()
+    window.URL.revokeObjectURL(url)
+  }
+
+  const downloadAllFuelRecords = () => {
+    const headers = ["Date/Time", "Fuel Levels", "Odometer", "Speed", "Status"]
+    const data = getFilteredFuelRecords().map((record) => ({
+      date_time: new Date(record.timestamp).toLocaleString(),
+      fuel_levels: `${record.fuel_liters}L`,
+      odometer: `${record.odometer} km`,
+      speed: `${record.speed} km/h`,
+      status: record.ignition ? "ON" : "OFF",
+    }))
+    downloadCSV(data, "fuel_records.csv", headers)
+  }
+
+  const downloadSelectedFuelRecords = () => {
+    const headers = ["Date/Time", "Fuel Levels", "Odometer", "Speed", "Status"]
+    const filtered = getFilteredFuelRecords().filter((record) => selectedFuelRecords.includes(record.id))
+    const data = filtered.map((record) => ({
+      date_time: new Date(record.timestamp).toLocaleString(),
+      fuel_levels: `${record.fuel_liters}L`,
+      odometer: `${record.odometer} km`,
+      speed: `${record.speed} km/h`,
+      status: record.ignition ? "ON" : "OFF",
+    }))
+    downloadCSV(data, "selected_fuel_records.csv", headers)
+  }
+
+  const downloadAllFuelEvents = () => {
+    const headers = ["Event", "Date/Time", "Fuel Change", "Location", "Vehicle State"]
+    const data = getFilteredFuelEvents().map((event) => ({
+      event: event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1),
+      date_time: new Date(event.timestamp).toLocaleString(),
+      fuel_change: `${event.event_type === "theft" ? "-" : "+"}${Math.abs(event.fuel_change.amount_liters)}L`,
+      location: `${event.location.latitude.toFixed(4)}, ${event.location.longitude.toFixed(4)}`,
+      vehicle_state: `${event.vehicle_state.ignition ? "ON" : "OFF"}, ${event.vehicle_state.speed} km/h`,
+    }))
+    downloadCSV(data, "fuel_events.csv", headers)
+  }
+
+  const downloadSelectedFuelEvents = () => {
+    const headers = ["Event", "Date/Time", "Fuel Change", "Location", "Vehicle State"]
+    const filtered = getFilteredFuelEvents().filter((event) => selectedFuelEvents.includes(event.id))
+    const data = filtered.map((event) => ({
+      event: event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1),
+      date_time: new Date(event.timestamp).toLocaleString(),
+      fuel_change: `${event.event_type === "theft" ? "-" : "+"}${Math.abs(event.fuel_change.amount_liters)}L`,
+      location: `${event.location.latitude.toFixed(4)}, ${event.location.longitude.toFixed(4)}`,
+      vehicle_state: `${event.vehicle_state.ignition ? "ON" : "OFF"}, ${event.vehicle_state.speed} km/h`,
+    }))
+    downloadCSV(data, "selected_fuel_events.csv", headers)
   }
 
   // Generate chart data for fuel levels
   const generateChartData = () => {
     if (!vehicleFuelRecords.length) return []
 
-    return vehicleFuelRecords
-      .slice(-24) // Last 24 records
-      .map((record) => ({
-        time: new Date(record.timestamp).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        level: record.fuel_liters,
-        timestamp: record.timestamp,
-      }))
+    return vehicleFuelRecords.slice(-24).map((record) => ({
+      time: new Date(record.timestamp).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      level: record.fuel_liters,
+      timestamp: record.timestamp,
+    }))
   }
 
   const filteredVehicles = useMemo(() => {
@@ -293,6 +515,7 @@ const Vehicles = () => {
     )
   }
 
+  // Enhanced event icon function like FuelTheft.tsx
   const getEventIcon = (eventType: string) => {
     switch (eventType) {
       case "theft":
@@ -309,12 +532,9 @@ const Vehicles = () => {
   // Get final connection status
   const getFinalConnectionStatus = () => {
     if (!isSimulationComplete) return null
-
     const hasRecentData = vehicleFuelRecords.length > 0
     const isVehicleActive = selectedVehicle?.is_active
-    const hasEvents = vehicleFuelEvents.length > 0
-
-    return hasRecentData && isVehicleActive && (hasEvents || signalStrength > 50)
+    return hasRecentData && isVehicleActive && signalStrength > 50
   }
 
   // GPS Status Panel Component
@@ -328,14 +548,17 @@ const Vehicles = () => {
           <div className="flex items-center justify-between">
             {/* Left Section - Back Button & Vehicle Info */}
             <div className="flex items-center gap-6">
-              <Button variant="outline" onClick={() => setSelectedVehicle(null)} className="flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedVehicle(null)}
+                className="flex items-center gap-2 hover:bg-gray-100"
+              >
                 <ArrowLeft className="h-4 w-4" />
-                Back to Vehicles
               </Button>
 
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  {/* Animated Vehicle Icon */}
                   <div
                     className={`relative p-3 rounded-full ${
                       showFinalStatus ? (isConnected ? "bg-green-100" : "bg-red-100") : "bg-blue-100"
@@ -362,7 +585,7 @@ const Vehicles = () => {
               {/* GPS Signal */}
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  <Satellite
+                  <Activity
                     className={`h-5 w-5 ${
                       showFinalStatus ? (isConnected ? "text-green-600" : "text-red-600") : "text-blue-600"
                     } ${!showFinalStatus ? "animate-pulse" : ""}`}
@@ -371,21 +594,6 @@ const Vehicles = () => {
                 <div>
                   <div className="text-xs text-gray-500">GPS Signal</div>
                   <div className="text-sm font-semibold text-gray-900">{signalStrength}%</div>
-                </div>
-              </div>
-
-              {/* Satellites */}
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <Radio
-                    className={`h-5 w-5 ${
-                      satelliteCount >= 4 ? "text-green-600" : "text-yellow-600"
-                    } ${!showFinalStatus ? "animate-pulse" : ""}`}
-                  />
-                </div>
-                <div>
-                  <div className="text-xs text-gray-500">Satellites</div>
-                  <div className="text-sm font-semibold text-gray-900">{satelliteCount}/12</div>
                 </div>
               </div>
 
@@ -446,7 +654,6 @@ const Vehicles = () => {
                 ))}
               </div>
 
-              {/* Live Indicator */}
               <div className="flex items-center gap-2">
                 <div
                   className={`w-2 h-2 rounded-full ${
@@ -487,15 +694,15 @@ const Vehicles = () => {
     )
   }
 
-  // If a vehicle is selected, show the detail view with GPS panel
+  // If a vehicle is selected, show the detail view
   if (selectedVehicle) {
     return (
       <SidebarProvider>
         <div className="min-h-screen flex w-full">
           <AppSidebar />
-          <SidebarInset>
+          <SidebarInset className="flex-1">
             <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4">
-              <div className="container mx-auto space-y-6">
+              <div className="max-w-7xl mx-auto space-y-6">
                 {/* GPS Status Panel */}
                 <GPSStatusPanel />
 
@@ -504,167 +711,314 @@ const Vehicles = () => {
                   <p className="text-muted-foreground">Vehicle Details & Analytics</p>
                 </div>
 
-                {detailLoading ? (
-                  <div className="flex items-center justify-center h-64">
-                    <div className="text-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                      <p className="mt-4 text-muted-foreground">Loading vehicle details...</p>
-                    </div>
-                  </div>
-                ) : (
-                  <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-                    <TabsList className="grid w-full grid-cols-3">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="fuel-report">Fuel Report</TabsTrigger>
-                      <TabsTrigger value="fuel-events">Fuel Events</TabsTrigger>
-                    </TabsList>
+                <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+                  <TabsList className="grid w-full grid-cols-3">
+                    <TabsTrigger value="overview">Overview</TabsTrigger>
+                    <TabsTrigger value="fuel-report">Fuel Report</TabsTrigger>
+                    <TabsTrigger value="fuel-events">Fuel Events</TabsTrigger>
+                  </TabsList>
 
-                    <TabsContent value="overview" className="space-y-6">
-                      {/* Vehicle Info Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <Card>
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Vehicle Info</CardTitle>
-                            <Car className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                <div>License: {selectedVehicle.license_plate}</div>
-                                <div>IMEI: {selectedVehicle.imei}</div>
-                                <div>Type: {getVehicleTypeDisplay(selectedVehicle.type)}</div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Driver Info</CardTitle>
-                            <Car className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.driver_name}</div>
-                              <div className="text-sm text-muted-foreground">
-                                <div>Phone: {selectedVehicle.driver_phone}</div>
-                                <div>Status: {getStatusBadge({ ...selectedVehicle, status: "ACTIVE" })}</div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card>
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Fuel Capacity</CardTitle>
-                            <Fuel className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.fuel_capacity}L</div>
-                              <div className="text-sm text-muted-foreground">
-                                <div>Current: {vehicleFuelRecords[0]?.fuel_liters || 0}L</div>
-                                <div>Records: {vehicleFuelRecords.length}</div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </div>
-
-                      {/* Quick Stats */}
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold">{vehicleFuelEvents.length}</div>
-                            <p className="text-xs text-muted-foreground">Total Events</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold text-red-600">
-                              {vehicleFuelEvents.filter((e) => e.event_type === "theft").length}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Theft Events</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold text-green-600">
-                              {vehicleFuelEvents.filter((e) => e.event_type === "fill").length}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Fill Events</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold">{vehicleFuelRecords.length}</div>
-                            <p className="text-xs text-muted-foreground">Fuel Records</p>
-                          </CardContent>
-                        </Card>
-                      </div>
-                    </TabsContent>
-
-                    <TabsContent value="fuel-report" className="space-y-6">
-                      {/* Fuel Level Chart */}
+                  <TabsContent value="overview" className="space-y-6">
+                    {/* Vehicle Info Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       <Card>
-                        <CardHeader>
-                          <CardTitle>Fuel Level Over Time</CardTitle>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Vehicle Info</CardTitle>
+                          <Car className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                          {chartData.length > 0 ? (
-                            <ChartContainer
-                              className="h-[400px] w-full"
-                              config={{
-                                level: { label: "Fuel Level", color: "hsl(var(--chart-1))" },
-                              }}
-                            >
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart data={chartData}>
-                                  <CartesianGrid strokeDasharray="3 3" />
-                                  <XAxis dataKey="time" />
-                                  <YAxis />
-                                  <Tooltip />
-                                  <Legend />
-                                  <ReferenceLine y={15} stroke="red" strokeDasharray="5 5" label="Low Fuel" />
-                                  <Line
-                                    type="monotone"
-                                    dataKey="level"
-                                    stroke="#2563eb"
-                                    strokeWidth={2}
-                                    name="Fuel Level (L)"
-                                  />
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </ChartContainer>
-                          ) : (
-                            <div className="h-[400px] flex items-center justify-center border border-dashed rounded-lg">
-                              <p className="text-muted-foreground">No fuel data available</p>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>License: {selectedVehicle.license_plate}</div>
+                              <div>IMEI: {selectedVehicle.imei}</div>
+                              <div>Type: {getVehicleTypeDisplay(selectedVehicle.type)}</div>
                             </div>
-                          )}
+                          </div>
                         </CardContent>
                       </Card>
 
-                      {/* Fuel Records Table */}
                       <Card>
-                        <CardHeader>
-                          <CardTitle>Recent Fuel Records</CardTitle>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Driver Info</CardTitle>
+                          <Car className="h-4 w-4 text-muted-foreground" />
                         </CardHeader>
                         <CardContent>
-                          <ScrollArea className="h-[400px]">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Timestamp</TableHead>
-                                  <TableHead>Fuel Level</TableHead>
-                                  <TableHead>Odometer</TableHead>
-                                  <TableHead>Speed</TableHead>
-                                  <TableHead>Status</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {vehicleFuelRecords.slice(0, 20).map((record, index) => (
-                                  <TableRow key={index}>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.driver_name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>Phone: {selectedVehicle.driver_phone}</div>
+                              <div>Status: {getStatusBadge({ ...selectedVehicle, status: "ACTIVE" })}</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Fuel Capacity</CardTitle>
+                          <Fuel className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.fuel_capacity}L</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>Current: {vehicleFuelRecords[0]?.fuel_liters || 0}L</div>
+                              <div>Records: {vehicleFuelRecords.length}</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </div>
+
+                    {/* Quick Stats - Clickable Event Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleEventCardClick("theft")}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold text-red-600">
+                            {vehicleFuelEvents.filter((e) => e.event_type === "theft").length}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Theft Events</p>
+                        </CardContent>
+                      </Card>
+                      <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleEventCardClick("fill")}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold text-green-600">
+                            {vehicleFuelEvents.filter((e) => e.event_type === "fill").length}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Fill Events</p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold">{vehicleFuelRecords.length}</div>
+                          <p className="text-xs text-muted-foreground">Fuel Records</p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </TabsContent>
+
+                  <TabsContent value="fuel-report" className="space-y-6">
+                    {/* Fuel Level Chart */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>Fuel Levels Over Time</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          This chart shows how much fuel is in your vehicle tank over time. The red line indicates when
+                          fuel is running low (50L warning).
+                        </p>
+                      </CardHeader>
+                      <CardContent>
+                        {chartData.length > 0 ? (
+                          <ChartContainer
+                            className="h-[400px] w-full"
+                            config={{
+                              level: { label: "Fuel Levels", color: "hsl(var(--chart-1))" },
+                            }}
+                          >
+                            <ResponsiveContainer width="100%" height="100%">
+                              <LineChart data={chartData}>
+                                <CartesianGrid strokeDasharray="3 3" />
+                                <XAxis
+                                  dataKey="time"
+                                  tick={{ fontSize: 11 }}
+                                  angle={-45}
+                                  textAnchor="end"
+                                  height={80}
+                                  label={{
+                                    value: "Time Period",
+                                    position: "insideBottom",
+                                    offset: -10,
+                                    style: { textAnchor: "middle", fontSize: "14px", fontWeight: "bold" },
+                                  }}
+                                />
+                                <YAxis
+                                  tick={{ fontSize: 12 }}
+                                  domain={[0, Math.max(...vehicleFuelRecords.map((r) => r.fuel_liters), 100)]}
+                                  label={{
+                                    value: "Fuel Amount (Liters)",
+                                    angle: -90,
+                                    position: "insideLeft",
+                                    style: { textAnchor: "middle", fontSize: "14px", fontWeight: "bold" },
+                                  }}
+                                />
+                                <Tooltip />
+                                <Legend />
+                                <ReferenceLine y={50} stroke="red" strokeDasharray="5 5" label="Low Fuel" />
+                                <Line
+                                  type="monotone"
+                                  dataKey="level"
+                                  stroke="#2563eb"
+                                  strokeWidth={2}
+                                  name="Fuel Levels (L)"
+                                />
+                              </LineChart>
+                            </ResponsiveContainer>
+                          </ChartContainer>
+                        ) : (
+                          <div className="h-[400px] flex items-center justify-center border border-dashed rounded-lg">
+                            <p className="text-muted-foreground">No fuel data available</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+
+                    {/* Fuel Records Table with Filters moved here */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Recent Fuel Records</CardTitle>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadAllFuelRecords}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadSelectedFuelRecords}
+                            disabled={selectedFuelRecords.length === 0}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download Selected ({selectedFuelRecords.length})
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="space-y-4">
+                        {/* Filters moved here - below the chart */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                              <Filter className="h-4 w-4" />
+                              Filters
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="flex gap-4 items-center">
+                              <div className="flex items-center gap-2">
+                                <Label className="text-sm font-medium">Event Type:</Label>
+                                <Select value={fuelReportFilter} onValueChange={setFuelReportFilter}>
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Events</SelectItem>
+                                    <SelectItem value="theft">Theft</SelectItem>
+                                    <SelectItem value="fill">Fill</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Label className="text-sm font-medium">Date Range:</Label>
+                                <Select value={fuelReportDateFilter} onValueChange={setFuelReportDateFilter}>
+                                  <SelectTrigger className="w-32">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="all">All Time</SelectItem>
+                                    <SelectItem value="7">Last 7 days</SelectItem>
+                                    <SelectItem value="30">Last 30 days</SelectItem>
+                                    <SelectItem value="90">Last 90 days</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setFuelReportFilter("all")
+                                  setFuelReportDateFilter("all")
+                                  setSelectedFuelRecords([])
+                                }}
+                              >
+                                Clear
+                              </Button>
+                            </div>
+                          </CardContent>
+                        </Card>
+
+                        <ScrollArea className="h-[400px]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-12">
+                                  <Checkbox
+                                    checked={selectedFuelRecords.length === getFilteredFuelRecords().length}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedFuelRecords(getFilteredFuelRecords().map((r) => r.id))
+                                      } else {
+                                        setSelectedFuelRecords([])
+                                      }
+                                    }}
+                                  />
+                                </TableHead>
+                                <TableHead>Event</TableHead>
+                                <TableHead>Date/Time</TableHead>
+                                <TableHead>Fuel Levels</TableHead>
+                                <TableHead>Odometer</TableHead>
+                                <TableHead>Speed</TableHead>
+                                <TableHead>Status</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getFilteredFuelRecords()
+                                .slice(0, 20)
+                                .map((record, index) => (
+                                  <TableRow key={record.id || index}>
+                                    <TableCell>
+                                      <Checkbox
+                                        checked={selectedFuelRecords.includes(record.id || index.toString())}
+                                        onCheckedChange={(checked) => {
+                                          const recordId = record.id || index.toString()
+                                          if (checked) {
+                                            setSelectedFuelRecords([...selectedFuelRecords, recordId])
+                                          } else {
+                                            setSelectedFuelRecords(selectedFuelRecords.filter((id) => id !== recordId))
+                                          }
+                                        }}
+                                      />
+                                    </TableCell>
+                                    <TableCell>
+                                      {/* Find matching fuel event for this record */}
+                                      {(() => {
+                                        const matchingEvent = vehicleFuelEvents.find(
+                                          (event) =>
+                                            Math.abs(
+                                              new Date(event.timestamp).getTime() -
+                                                new Date(record.timestamp).getTime(),
+                                            ) <
+                                            30 * 60 * 1000, // Within 30 minutes
+                                        )
+
+                                        if (matchingEvent) {
+                                          return (
+                                            <div className="flex items-center gap-2">
+                                              {getEventIcon(matchingEvent.event_type)}
+                                              <Badge
+                                                variant={
+                                                  matchingEvent.event_type === "theft" ? "destructive" : "default"
+                                                }
+                                                className="text-xs"
+                                              >
+                                                {matchingEvent.event_type.toUpperCase()}
+                                              </Badge>
+                                            </div>
+                                          )
+                                        }
+                                        return <span className="text-xs text-muted-foreground">-</span>
+                                      })()}
+                                    </TableCell>
                                     <TableCell className="font-mono text-xs">
                                       {new Date(record.timestamp).toLocaleString()}
                                     </TableCell>
@@ -680,115 +1034,193 @@ const Vehicles = () => {
                                     </TableCell>
                                   </TableRow>
                                 ))}
-                              </TableBody>
-                            </Table>
-                          </ScrollArea>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
 
-                    <TabsContent value="fuel-events" className="space-y-6">
-                      {/* Events Summary */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold">{vehicleFuelEvents.length}</div>
-                            <p className="text-xs text-muted-foreground">Total Events</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold text-red-600">
-                              {vehicleFuelEvents.filter((e) => e.event_type === "theft").length}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Theft Events</p>
-                          </CardContent>
-                        </Card>
-                        <Card>
-                          <CardContent className="pt-6">
-                            <div className="text-2xl font-bold text-green-600">
-                              {vehicleFuelEvents.filter((e) => e.event_type === "fill").length}
-                            </div>
-                            <p className="text-xs text-muted-foreground">Fill Events</p>
-                          </CardContent>
-                        </Card>
-                      </div>
+                  <TabsContent value="fuel-events" className="space-y-6">
+                    {/* Filters */}
+                    <Card>
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Filter className="h-4 w-4" />
+                          Filters
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex gap-4 items-center">
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm font-medium">Event Type:</Label>
+                            <Select value={fuelEventsFilter} onValueChange={setFuelEventsFilter}>
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Events</SelectItem>
+                                <SelectItem value="theft">Theft</SelectItem>
+                                <SelectItem value="fill">Fill</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Label className="text-sm font-medium">Date Range:</Label>
+                            <Select value={fuelEventsDateFilter} onValueChange={setFuelEventsDateFilter}>
+                              <SelectTrigger className="w-32">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="all">All Time</SelectItem>
+                                <SelectItem value="7">Last 7 days</SelectItem>
+                                <SelectItem value="30">Last 30 days</SelectItem>
+                                <SelectItem value="90">Last 90 days</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button
+                            variant="outline"
+                            onClick={() => {
+                              setFuelEventsFilter("all")
+                              setFuelEventsDateFilter("all")
+                              setSelectedFuelEvents([])
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                      {/* Events Table */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle>Fuel Events</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ScrollArea className="h-[500px]">
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Event</TableHead>
-                                  <TableHead>Timestamp</TableHead>
-                                  <TableHead>Fuel Change</TableHead>
-                                  <TableHead>Location</TableHead>
-                                  <TableHead>Vehicle State</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {vehicleFuelEvents.map((event) => (
-                                  <TableRow key={event.id}>
-                                    <TableCell>
-                                      <div className="flex items-center gap-2">
-                                        {getEventIcon(event.event_type)}
+                    {/* Events Table */}
+                    <Card>
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <CardTitle>Fuel Events</CardTitle>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadAllFuelEvents}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download All
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={downloadSelectedFuelEvents}
+                            disabled={selectedFuelEvents.length === 0}
+                            className="flex items-center gap-2"
+                          >
+                            <Download className="h-4 w-4" />
+                            Download Selected ({selectedFuelEvents.length})
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <ScrollArea className="h-[500px]">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-12">
+                                  <Checkbox
+                                    checked={selectedFuelEvents.length === getFilteredFuelEvents().length}
+                                    onCheckedChange={(checked) => {
+                                      if (checked) {
+                                        setSelectedFuelEvents(getFilteredFuelEvents().map((e) => e.id))
+                                      } else {
+                                        setSelectedFuelEvents([])
+                                      }
+                                    }}
+                                  />
+                                </TableHead>
+                                <TableHead>Event</TableHead>
+                                <TableHead>Date and Time</TableHead>
+                                <TableHead>Fuel Change</TableHead>
+                                <TableHead>Location</TableHead>
+                                <TableHead>Vehicle State</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {getFilteredFuelEvents().map((event) => (
+                                <TableRow key={event.id}>
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedFuelEvents.includes(event.id)}
+                                      onCheckedChange={(checked) => {
+                                        if (checked) {
+                                          setSelectedFuelEvents([...selectedFuelEvents, event.id])
+                                        } else {
+                                          setSelectedFuelEvents(selectedFuelEvents.filter((id) => id !== event.id))
+                                        }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell>
+                                    {/* Enhanced Event column like FuelTheft.tsx */}
+                                    <div className="flex items-center gap-2">
+                                      {getEventIcon(event.event_type)}
+                                      <div className="flex flex-col">
                                         <span className="font-medium">
                                           {event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}
                                         </span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                      {new Date(event.timestamp).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex flex-col">
-                                        <span
-                                          className={`font-semibold ${
-                                            event.event_type === "theft" ? "text-red-600" : "text-green-600"
-                                          }`}
-                                        >
-                                          {event.event_type === "theft" ? "-" : "+"}
-                                          {event.fuel_change.amount_liters}L
-                                        </span>
-                                        <span className="text-xs text-muted-foreground">
-                                          {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
-                                        </span>
-                                      </div>
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                      <div className="flex items-center gap-1">
-                                        <MapPin className="h-3 w-3" />
-                                        {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
-                                      </div>
-                                    </TableCell>
-                                    <TableCell>
-                                      <div className="flex gap-1">
                                         <Badge
-                                          variant={event.vehicle_state.ignition ? "default" : "secondary"}
-                                          className="text-xs"
+                                          variant={event.event_type === "theft" ? "destructive" : "default"}
+                                          className="text-xs w-fit"
                                         >
-                                          {event.vehicle_state.ignition ? "ON" : "OFF"}
-                                        </Badge>
-                                        <Badge variant="outline" className="text-xs">
-                                          {event.vehicle_state.speed} km/h
+                                          {event.event_type === "theft" ? "THEFT" : "FILL"}
                                         </Badge>
                                       </div>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          </ScrollArea>
-                        </CardContent>
-                      </Card>
-                    </TabsContent>
-                  </Tabs>
-                )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    {new Date(event.timestamp).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex flex-col">
+                                      <span
+                                        className={`font-semibold ${
+                                          event.event_type === "theft" ? "text-red-600" : "text-green-600"
+                                        }`}
+                                      >
+                                        {event.event_type === "theft" ? "-" : "+"}
+                                        {Math.abs(event.fuel_change.amount_liters)}L
+                                      </span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
+                                      </span>
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    <div className="flex items-center gap-1">
+                                      <MapPin className="h-3 w-3" />
+                                      {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell>
+                                    <div className="flex gap-1">
+                                      <Badge
+                                        variant={event.vehicle_state.ignition ? "default" : "secondary"}
+                                        className="text-xs"
+                                      >
+                                        {event.vehicle_state.ignition ? "ON" : "OFF"}
+                                      </Badge>
+                                      <Badge variant="outline" className="text-xs">
+                                        {event.vehicle_state.speed} km/h
+                                      </Badge>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </ScrollArea>
+                      </CardContent>
+                    </Card>
+                  </TabsContent>
+                </Tabs>
               </div>
             </div>
           </SidebarInset>
@@ -802,9 +1234,9 @@ const Vehicles = () => {
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
         <AppSidebar />
-        <SidebarInset>
+        <SidebarInset className="flex-1">
           <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4">
-            <div className="container mx-auto space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6">
               {/* Header */}
               <div className="flex items-center gap-4 mb-8">
                 <SidebarTrigger />
@@ -868,6 +1300,7 @@ const Vehicles = () => {
                                   <button
                                     onClick={() => fetchVehicleDetails(vehicle)}
                                     className="font-semibold text-primary hover:underline cursor-pointer text-left"
+                                    disabled={loadingVehicleId === vehicle.id}
                                   >
                                     {vehicle.name}
                                   </button>
@@ -890,6 +1323,7 @@ const Vehicles = () => {
                                 <button
                                   onClick={() => fetchVehicleDetails(vehicle)}
                                   className="font-mono text-primary hover:underline cursor-pointer"
+                                  disabled={loadingVehicleId === vehicle.id}
                                 >
                                   {vehicle.license_plate}
                                 </button>
@@ -899,9 +1333,14 @@ const Vehicles = () => {
                                   variant="outline"
                                   size="sm"
                                   onClick={() => fetchVehicleDetails(vehicle)}
+                                  disabled={loadingVehicleId === vehicle.id}
                                   className="flex items-center gap-2"
                                 >
-                                  <Eye className="h-4 w-4" />
+                                  {loadingVehicleId === vehicle.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
                                   View Details
                                 </Button>
                               </TableCell>

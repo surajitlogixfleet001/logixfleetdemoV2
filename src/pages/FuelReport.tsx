@@ -32,10 +32,8 @@ import {
   Tooltip,
 } from "recharts"
 import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2, RefreshCw } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
-import api from "@/lib/api"
 import { Input } from "@/components/ui/input"
 
 interface Vehicle {
@@ -95,7 +93,6 @@ interface ChartDataPoint {
   fullTimestamp: Date
   displayTime: string
   dataCount: number
-  isMockup?: boolean
 }
 
 interface LoadingState {
@@ -156,8 +153,8 @@ const demoVehicles: Vehicle[] = [
   },
 ]
 
-// Generate realistic mockup fuel records
-const generateMockupFuelRecords = (count = 100): FuelRecord[] => {
+// Generate realistic demo fuel records
+const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
   const records: FuelRecord[] = []
   const now = new Date()
   let currentFuel = 180 // Start with reasonable fuel level
@@ -171,26 +168,25 @@ const generateMockupFuelRecords = (count = 100): FuelRecord[] => {
 
     // Occasionally refuel
     if (Math.random() < 0.02 && currentFuel < 100) {
-      // 2% chance
       currentFuel = Math.min(250, currentFuel + Math.random() * 150 + 100)
     }
 
     records.push({
       timestamp: timestamp.toISOString(),
       fuel_liters: Math.round(currentFuel * 10) / 10,
-      odometer: 50000 + (count - i) * 2, // Increasing odometer
+      odometer: 50000 + (count - i) * 2,
       latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
       longitude: -74.006 + (Math.random() - 0.5) * 0.1,
-      speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20, // 30% stationary
-      ignition: Math.random() < 0.8, // 80% ignition on
-      movement: Math.random() < 0.7, // 70% moving
-      satellites: Math.floor(Math.random() * 8) + 4, // 4-12 satellites
-      external_voltage: 12.0 + Math.random() * 2, // 12-14V
-      engine_hours: 1000 + (count - i) * 0.25, // Increasing engine hours
+      speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20,
+      ignition: Math.random() < 0.8,
+      movement: Math.random() < 0.7,
+      satellites: Math.floor(Math.random() * 8) + 4,
+      external_voltage: 12.0 + Math.random() * 2,
+      engine_hours: 1000 + (count - i) * 0.25,
     })
   }
 
-  return records.reverse() // Chronological order
+  return records.reverse()
 }
 
 const FuelReport: React.FC = () => {
@@ -211,7 +207,7 @@ const FuelReport: React.FC = () => {
     hasPrevious: false,
   })
   const [loadingState, setLoadingState] = useState<LoadingState>({
-    isLoading: false, // Start with false since we load mockup immediately
+    isLoading: false,
     currentPage: 0,
     totalPages: 0,
     loadedRecords: 0,
@@ -221,246 +217,70 @@ const FuelReport: React.FC = () => {
   const [tableLoading, setTableLoading] = useState<boolean>(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedRecords, setSelectedRecords] = useState<string[]>([])
-  const [isUsingMockupData, setIsUsingMockupData] = useState<boolean>(true)
-  const { toast } = useToast()
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false)
 
-  // Add these state variables after the existing state declarations
+  // Filter states
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
 
-  // Load mockup data immediately
-  const loadMockupData = () => {
-    console.log("📊 Loading mockup fuel data...")
-    const mockupRecords = generateMockupFuelRecords(100)
-
+  // Load demo data immediately on component mount
+  const loadDemoData = () => {
+    const demoRecords = generateDemoFuelRecords(100)
+    
     setVehicles(demoVehicles)
-    setFuelRecords(mockupRecords)
-    setTableData(mockupRecords.slice(0, 50)) // First 50 for table
-    setFilteredData(mockupRecords.slice(0, 50))
-    setIsUsingMockupData(true)
+    setFuelRecords(demoRecords)
+    setTableData(demoRecords.slice(0, 50)) // First 50 for table
+    setFilteredData(demoRecords.slice(0, 50))
 
     setPaginationState({
       currentPage: 1,
-      totalPages: Math.ceil(mockupRecords.length / 50),
-      totalItems: mockupRecords.length,
+      totalPages: Math.ceil(demoRecords.length / 50),
+      totalItems: demoRecords.length,
       pageSize: 50,
-      hasNext: mockupRecords.length > 50,
+      hasNext: demoRecords.length > 50,
       hasPrevious: false,
     })
-
- 
   }
 
-  // Fetch vehicles
-  const fetchVehicles = async () => {
-    try {
-      const response = await api.get("/vehicles/")
-      const vehiclesData = response.data.fleet_overview || []
-      setVehicles(vehiclesData)
-      return vehiclesData
-    } catch (err: any) {
-      console.error("Error fetching vehicles:", err)
-      setError("Failed to fetch vehicles data")
-      return []
-    }
-  }
-
-  // Fetch chart data (company-wide or vehicle-specific)
-  const fetchChartData = async () => {
-    try {
-      setLoadingState((prev) => ({
-        ...prev,
-        isLoading: true,
-        currentPage: 0,
-        totalPages: 0,
-        loadedRecords: 0,
-        totalRecords: 0,
-        progress: 0,
-      }))
-      setError(null)
-
-      // Always start with company-wide data, then filter if needed
-      let url = "/fuel-data/"
-      if (selectedChartVehicle !== "all" && selectedChartVehicle !== "") {
-        url = `/fuel-data/?license_plate=${selectedChartVehicle}`
-      }
-
-      // First, get the first page to know total pages and show initial data
-      const firstResponse = await api.get(`${url}${url.includes("?") ? "&" : "?"}page=1`)
-      const firstData: FuelDataResponse = firstResponse.data
-
-      if (!firstData.fuel_records || !Array.isArray(firstData.fuel_records)) {
-        throw new Error("Invalid data format received from API")
-      }
-
-      const totalPages = firstData.pagination?.total_pages || 1
-      const totalRecords = firstData.pagination?.total_records || firstData.fuel_records.length
-
-      // Show first page data immediately
-      setFuelRecords(firstData.fuel_records)
-      setIsUsingMockupData(false)
-
-      setLoadingState({
-        isLoading: totalPages > 1,
-        currentPage: 1,
-        totalPages,
-        loadedRecords: firstData.fuel_records.length,
-        totalRecords,
-        progress: totalPages > 1 ? (1 / totalPages) * 100 : 100,
-      })
-
-      // If there are more pages, load them progressively for the chart data
-      if (totalPages > 1) {
-        const batchSize = 3
-        const remainingPages = Array.from({ length: totalPages - 1 }, (_, i) => i + 2)
-
-        for (let i = 0; i < remainingPages.length; i += batchSize) {
-          const batch = remainingPages.slice(i, i + batchSize)
-
-          const batchPromises = batch.map((page) =>
-            api.get(`${url}${url.includes("?") ? "&" : "?"}page=${page}`).then((res) => res.data),
-          )
-
-          const batchResults = await Promise.all(batchPromises)
-
-          // Update data progressively
-          setFuelRecords((prevData) => {
-            const newData = [...prevData]
-            batchResults.forEach((data: FuelDataResponse) => {
-              if (data.fuel_records && Array.isArray(data.fuel_records)) {
-                newData.push(...data.fuel_records)
-              }
-            })
-            return newData
-          })
-
-          // Update loading state
-          const loadedPages = 1 + i + batch.length
-          const newLoadedRecords =
-            firstData.fuel_records.length +
-            batchResults.reduce((sum, data) => sum + (data.fuel_records?.length || 0), 0)
-
-          setLoadingState({
-            isLoading: loadedPages < totalPages,
-            currentPage: loadedPages,
-            totalPages,
-            loadedRecords: newLoadedRecords,
-            totalRecords,
-            progress: (loadedPages / totalPages) * 100,
-          })
-
-          // Small delay to prevent overwhelming the API
-          if (i + batchSize < remainingPages.length) {
-            await new Promise((resolve) => setTimeout(resolve, 100))
-          }
-        }
-
-        toast({
-          title: "Real Data Loading Complete",
-          description: `Successfully loaded all ${totalRecords} fuel records.`,
-        })
-      } else {
-        toast({
-          title: "Real Data Loaded",
-          description: `Successfully loaded ${totalRecords} fuel records.`,
-        })
-      }
-
-      return firstData.fuel_records
-    } catch (err: any) {
-      console.error("Error fetching fuel data:", err)
-      setError(err.message || "Failed to fetch fuel data")
-      setLoadingState((prev) => ({ ...prev, isLoading: false }))
+  // Simulate API call for real data
+  const fetchRealData = async () => {
+    setIsRefreshing(true)
     
-      return []
-    }
-  }
-
-  // Fetch table data (paginated - company-wide or vehicle-specific)
-  const fetchTableData = async (page: number) => {
     try {
-      setTableLoading(true)
-      setError(null)
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Simulate fetching real data (replace with actual API calls)
+      const realRecords = generateDemoFuelRecords(150) // Simulate more real data
+      
+      setVehicles(demoVehicles) // In real app, fetch from API
+      setFuelRecords(realRecords)
+      setTableData(realRecords.slice(0, 50))
+      setFilteredData(realRecords.slice(0, 50))
 
-      // Always start with company-wide data, then filter if needed
-      let url = `/fuel-data/?page=${page}`
-      if (selectedChartVehicle !== "all" && selectedChartVehicle !== "") {
-        url = `/fuel-data/?license_plate=${selectedChartVehicle}&page=${page}`
-      }
-
-      const response = await api.get(url)
-      const data: FuelDataResponse = response.data
-
-      if (!data.fuel_records || !Array.isArray(data.fuel_records)) {
-        throw new Error("Invalid data format received from API")
-      }
-
-      // Update table data
-      setTableData(data.fuel_records)
-      setFilteredData(data.fuel_records)
-      setIsUsingMockupData(false)
-
-      // Update pagination state
-      if (data.pagination) {
-        setPaginationState({
-          currentPage: data.pagination.page,
-          totalPages: data.pagination.total_pages,
-          totalItems: data.pagination.total_records,
-          pageSize: data.pagination.page_size,
-          hasNext: data.pagination.has_next,
-          hasPrevious: data.pagination.has_previous,
-        })
-      }
-
-      setSelectedRecords([]) // Clear selected records when changing pages
-      return data.fuel_records
-    } catch (err: any) {
-      console.error("Error fetching table data:", err)
-      setError(err.message || "Failed to fetch table data")
-
-      return []
+      setPaginationState({
+        currentPage: 1,
+        totalPages: Math.ceil(realRecords.length / 50),
+        totalItems: realRecords.length,
+        pageSize: 50,
+        hasNext: realRecords.length > 50,
+        hasPrevious: false,
+      })
+      
+    } catch (error) {
+      console.error("Failed to fetch real data:", error)
     } finally {
-      setTableLoading(false)
+      setIsRefreshing(false)
     }
   }
 
-  // Load mockup data immediately, then real data in background
+  // Load demo data immediately when component mounts
   useEffect(() => {
-    console.log("🚀 INITIALIZING FUEL REPORT...")
-
-    // Load mockup data immediately for fast UI
-    loadMockupData()
-
-    // Then load real data in background
-    const loadRealData = async () => {
-      try {
-        console.log("🔄 Loading real data in background...")
-        const vehiclesData = await fetchVehicles()
-        const chartData = await fetchChartData()
-        const tableData = await fetchTableData(1)
-
-        // Only show success if we got real data
-        if (chartData.length > 0 || tableData.length > 0) {
-      
-        }
-      } catch (error) {
-        console.error("Failed to load real data, keeping mockup:", error)
-      }
-    }
-
-    loadRealData()
+    loadDemoData()
   }, [])
-
-  // When vehicle selection changes, reload data
-  useEffect(() => {
-    if (!isUsingMockupData) {
-      fetchChartData()
-      fetchTableData(1) // Reset to page 1 when vehicle changes
-    }
-  }, [selectedChartVehicle])
 
   const handleFilter = () => {
     let filtered = tableData
@@ -484,7 +304,6 @@ const FuelReport: React.FC = () => {
     }
 
     filtered = filtered.filter((d) => new Date(d.timestamp) >= startTime)
-
     setFilteredData(filtered)
     setSelectedRecords([])
   }
@@ -515,14 +334,11 @@ const FuelReport: React.FC = () => {
     const dataToDownload = downloadAll
       ? filteredData
       : filteredData.filter((d) => selectedRecords.includes(d.timestamp))
+    
     if (!downloadAll && dataToDownload.length === 0) {
-      toast({
-        title: "No records selected",
-        description: "Please select records or use Download All.",
-        variant: "destructive",
-      })
       return
     }
+    
     const headers = [
       "Timestamp",
       "Fuel Level (L)",
@@ -536,6 +352,7 @@ const FuelReport: React.FC = () => {
       "External Voltage",
       "Engine Hours",
     ]
+    
     const csvRows = [headers.join(",")]
     dataToDownload.forEach((d) => {
       const row = [
@@ -553,6 +370,7 @@ const FuelReport: React.FC = () => {
       ].join(",")
       csvRows.push(row)
     })
+    
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -564,10 +382,9 @@ const FuelReport: React.FC = () => {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
-    toast({ title: "Download Complete", description: `Downloaded ${dataToDownload.length} records.` })
   }
 
-  // Enhanced chart data processing with proper aggregation
+  // Enhanced chart data processing
   const getChartDataForVehicle = (period: TimePeriod): ChartDataPoint[] => {
     const now = new Date()
     let startTime: Date
@@ -614,7 +431,6 @@ const FuelReport: React.FC = () => {
           avgLevel: avgLevel,
           fullTimestamp: new Date(),
           dataCount: slotData.length,
-          isMockup: isUsingMockupData,
         }
       })
     } else {
@@ -646,7 +462,6 @@ const FuelReport: React.FC = () => {
           avgLevel: avgLevel,
           fullTimestamp: dayDate,
           dataCount: dayData.length,
-          isMockup: isUsingMockupData,
         })
       }
 
@@ -663,7 +478,6 @@ const FuelReport: React.FC = () => {
           <p className="font-medium">{data.displayTime}</p>
           <p className="text-sm">
             <span className="text-blue-600 font-medium">Avg Fuel Level: {payload[0].value.toFixed(1)}L</span>
-
           </p>
           <p className="text-xs text-muted-foreground">Data points: {data.dataCount}</p>
         </div>
@@ -689,17 +503,11 @@ const FuelReport: React.FC = () => {
 
   // Handle page change
   const handlePageChange = (page: number) => {
-    if (!isUsingMockupData) {
-      fetchTableData(page)
-    } else {
-      // Handle mockup pagination
-      const startIndex = (page - 1) * 50
-      const endIndex = startIndex + 50
-      const mockupRecords = generateMockupFuelRecords(100)
-      setTableData(mockupRecords.slice(startIndex, endIndex))
-      setFilteredData(mockupRecords.slice(startIndex, endIndex))
-      setPaginationState((prev) => ({ ...prev, currentPage: page }))
-    }
+    const startIndex = (page - 1) * 50
+    const endIndex = startIndex + 50
+    setTableData(fuelRecords.slice(startIndex, endIndex))
+    setFilteredData(fuelRecords.slice(startIndex, endIndex))
+    setPaginationState((prev) => ({ ...prev, currentPage: page }))
   }
 
   return (
@@ -715,41 +523,22 @@ const FuelReport: React.FC = () => {
                 Fuel Monitoring Report
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
-            
             </div>
             <div className="flex gap-2">
-             
+              <Button 
+                onClick={fetchRealData} 
+                disabled={isRefreshing}
+                className="flex items-center gap-2"
+              >
+                {isRefreshing ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4" />
+                )}
+                Refresh
+              </Button>
             </div>
           </div>
-
-          {/* Mockup Data Warning */}
-
-          {/* Loading Progress */}
-          {loadingState.isLoading && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span>
-                      Progress: {loadingState.currentPage} of {loadingState.totalPages} pages
-                    </span>
-                    <span>
-                      {loadingState.loadedRecords} of {loadingState.totalRecords} records
-                    </span>
-                  </div>
-                  <Progress value={loadingState.progress} className="w-full" />
-                </div>
-                <p className="text-sm text-muted-foreground">
-                </p>
-              </CardContent>
-            </Card>
-          )}
 
           {/* Enhanced Filters */}
           <Card>
@@ -880,10 +669,6 @@ const FuelReport: React.FC = () => {
                   <span className="text-sm font-normal text-muted-foreground ml-2">
                     ({chartTimePeriod === "day" ? "Last 24 hours (4-hour intervals)" : "Last 7 days"})
                   </span>
-                  {loadingState.isLoading && (
-                    <span className="text-xs text-orange-600 ml-2">(Updating as data loads...)</span>
-                  )}
-     
                 </CardTitle>
                 <div className="flex items-center gap-4">
                   <div className="flex items-center gap-2">
@@ -968,12 +753,11 @@ const FuelReport: React.FC = () => {
                     <Line
                       type="monotone"
                       dataKey="level"
-                      name={isUsingMockupData ? "Average Fuel Level " : "Average Fuel Level"}
-                      stroke={isUsingMockupData ? "#3b82f6" : "#2563eb"}
+                      name="Average Fuel Level"
+                      stroke="#2563eb"
                       strokeWidth={4}
-                      strokeDasharray={isUsingMockupData ? "5 5" : "0"}
-                      dot={{ fill: isUsingMockupData ? "#3b82f6" : "#2563eb", strokeWidth: 2, r: 6 }}
-                      activeDot={{ r: 8, stroke: isUsingMockupData ? "#3b82f6" : "#2563eb", strokeWidth: 3 }}
+                      dot={{ fill: "#2563eb", strokeWidth: 2, r: 6 }}
+                      activeDot={{ r: 8, stroke: "#2563eb", strokeWidth: 3 }}
                     />
                   </LineChart>
                 </ResponsiveContainer>
@@ -1018,95 +802,72 @@ const FuelReport: React.FC = () => {
                 <CardTitle>
                   Fuel Data (Page {paginationState.currentPage} of {paginationState.totalPages}, showing{" "}
                   {paginationState.pageSize} records per page, total {paginationState.totalItems} records)
-                  {tableLoading && <span className="text-sm font-normal text-orange-600 ml-2">(Loading data...)</span>}
-           
                 </CardTitle>
                 <div className="flex items-center gap-2">
-                  <Button
-                    onClick={() => fetchTableData(paginationState.currentPage)}
-                    variant="outline"
-                    disabled={tableLoading}
-                  >
-                    {tableLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                    )}
-                    Refresh Table Data
-                  </Button>
                   <span className="text-sm text-muted-foreground">{selectedRecords.length} selected</span>
                 </div>
               </div>
             </CardHeader>
             <CardContent>
-              {tableLoading ? (
-                <div className="flex items-center justify-center h-64">
-                  <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-                    <p className="mt-4 text-muted-foreground">Loading table data...</p>
-                  </div>
-                </div>
-              ) : (
-                <ScrollArea className="h-[600px]">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12">
+              <ScrollArea className="h-[600px]">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allCurrentPageSelected}
+                          onCheckedChange={toggleSelectAllPage}
+                          aria-label="Select all on page"
+                        />
+                      </TableHead>
+                      <TableHead>Timestamp</TableHead>
+                      <TableHead>Fuel Level</TableHead>
+                      <TableHead>Location</TableHead>
+                      <TableHead>Speed</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Engine Hours</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredData.map((data) => (
+                      <TableRow key={data.timestamp} className="hover:bg-muted/50">
+                        <TableCell>
                           <Checkbox
-                            checked={allCurrentPageSelected}
-                            onCheckedChange={toggleSelectAllPage}
-                            aria-label="Select all on page"
+                            checked={selectedRecords.includes(data.timestamp)}
+                            onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
+                            aria-label={`Select record ${data.timestamp}`}
                           />
-                        </TableHead>
-                        <TableHead>Timestamp</TableHead>
-                        <TableHead>Fuel Level</TableHead>
-                        <TableHead>Location</TableHead>
-                        <TableHead>Speed</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Engine Hours</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredData.map((data) => (
-                        <TableRow key={data.timestamp} className="hover:bg-muted/50">
-                          <TableCell>
-                            <Checkbox
-                              checked={selectedRecords.includes(data.timestamp)}
-                              onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
-                              aria-label={`Select record ${data.timestamp}`}
-                            />
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {new Date(data.timestamp).toLocaleString()}
-                          </TableCell>
-                          <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
-                            {data.fuel_liters}L
-                          </TableCell>
-                          <TableCell className="font-mono text-xs">
-                            {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
-                          </TableCell>
-                          <TableCell>{data.speed} km/h</TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
-                              <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
-                                {data.ignition ? "ON" : "OFF"}
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {new Date(data.timestamp).toLocaleString()}
+                        </TableCell>
+                        <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
+                          {data.fuel_liters}L
+                        </TableCell>
+                        <TableCell className="font-mono text-xs">
+                          {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
+                        </TableCell>
+                        <TableCell>{data.speed} km/h</TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                              {data.ignition ? "ON" : "OFF"}
+                            </Badge>
+                            {data.movement && (
+                              <Badge variant="outline" className="text-xs">
+                                MOVING
                               </Badge>
-                              {data.movement && (
-                                <Badge variant="outline" className="text-xs">
-                                  MOVING
-                                </Badge>
-                              )}
-                            </div>
-                          </TableCell>
-                          <TableCell>{data.engine_hours}h</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </ScrollArea>
-              )}
+                            )}
+                          </div>
+                        </TableCell>
+                        <TableCell>{data.engine_hours}h</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </ScrollArea>
 
-              {/* API-based Pagination */}
+              {/* Pagination */}
               {paginationState.totalPages > 1 && (
                 <div className="mt-4 flex items-center justify-between">
                   <div className="text-sm text-muted-foreground">
@@ -1126,25 +887,6 @@ const FuelReport: React.FC = () => {
                         />
                       </PaginationItem>
 
-                      {/* Show first page */}
-                      {paginationState.currentPage > 3 && (
-                        <>
-                          <PaginationItem>
-                            <PaginationLink
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handlePageChange(1)
-                              }}
-                            >
-                              1
-                            </PaginationLink>
-                          </PaginationItem>
-                          {paginationState.currentPage > 4 && <span className="px-2">...</span>}
-                        </>
-                      )}
-
-                      {/* Show pages around current page */}
                       {Array.from({ length: Math.min(5, paginationState.totalPages) }, (_, i) => {
                         const pageNum =
                           Math.max(1, Math.min(paginationState.totalPages - 4, paginationState.currentPage - 2)) + i
@@ -1166,26 +908,6 @@ const FuelReport: React.FC = () => {
                         }
                         return null
                       })}
-
-                      {/* Show last page */}
-                      {paginationState.currentPage < paginationState.totalPages - 2 && (
-                        <>
-                          {paginationState.currentPage < paginationState.totalPages - 3 && (
-                            <span className="px-2">...</span>
-                          )}
-                          <PaginationItem>
-                            <PaginationLink
-                              href="#"
-                              onClick={(e) => {
-                                e.preventDefault()
-                                handlePageChange(paginationState.totalPages)
-                              }}
-                            >
-                              {paginationState.totalPages}
-                            </PaginationLink>
-                          </PaginationItem>
-                        </>
-                      )}
 
                       <PaginationItem>
                         <PaginationNext

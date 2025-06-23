@@ -634,81 +634,82 @@ const FuelTheft = () => {
 
   // Fetch table data with pagination (company-wide or vehicle-specific)
   const fetchTableData = async (page: number) => {
-    try {
-      setTableLoading(true)
-      console.log("📋 Fetching table data for page:", page, "vehicle filter:", selectedVehicleFilter)
+    // try {
+    //   setTableLoading(true)
+    //   console.log("📋 Fetching table data for page:", page, "vehicle filter:", selectedVehicleFilter)
 
-      // Build URL - always start with base endpoint
-      let url = "/fuel-events/"
-      const params = new URLSearchParams()
-      params.append("page", page.toString())
+    //   // Build URL - always start with base endpoint
+    //   let url = "/fuel-events/"
+    //   const params = new URLSearchParams()
+    //   params.append("page", page.toString())
 
-      // Add vehicle filter if not "all"
-      if (selectedVehicleFilter && selectedVehicleFilter !== "all") {
-        params.append("license_plate", selectedVehicleFilter)
-      }
+    //   // Add vehicle filter if not "all"
+    //   if (selectedVehicleFilter && selectedVehicleFilter !== "all") {
+    //     params.append("license_plate", selectedVehicleFilter)
+    //   }
 
-      url += "?" + params.toString()
-      console.log("📋 Table API URL:", url)
+    //   url += "?" + params.toString()
+    //   console.log("📋 Table API URL:", url)
 
-      const response = await api.get(url)
-      console.log("📋 Table API response:", response.data)
+    //   const response = await api.get(url)
+    //   console.log("📋 Table API response:", response.data)
 
-      // Handle different response formats
-      let eventsData: FuelEvent[] = []
-      let paginationData = {
-        page: page,
-        page_size: 50,
-        total_events: 0,
-        total_pages: 1,
-        has_next: false,
-        has_previous: false,
-      }
+    //   // Handle different response formats
+    //   let eventsData: FuelEvent[] = []
+    //   let paginationData = {
+    //     page: page,
+    //     page_size: 50,
+    //     total_events: 0,
+    //     total_pages: 1,
+    //     has_next: false,
+    //     has_previous: false,
+    //   }
 
-      if (response.data.events && Array.isArray(response.data.events)) {
-        eventsData = response.data.events
-        if (response.data.pagination) {
-          paginationData = response.data.pagination
-        }
-      } else if (Array.isArray(response.data)) {
-        eventsData = response.data
-        paginationData.total_events = eventsData.length
-      } else {
-        console.warn("📋 Unexpected table data format:", response.data)
-        eventsData = []
-      }
+    //   if (response.data.events && Array.isArray(response.data.events)) {
+    //     eventsData = response.data.events
+    //     if (response.data.pagination) {
+    //       paginationData = response.data.pagination
+    //     }
+    //     console.log(eventsData)
+    //   } else if (Array.isArray(response.data)) {
+    //     eventsData = response.data
+    //     paginationData.total_events = eventsData.length
+    //   } else {
+    //     console.warn("📋 Unexpected table data format:", response.data)
+    //     eventsData = []
+    //   }
 
-      console.log("📋 Table events loaded:", eventsData.length)
+    //   console.log("📋 Table events loaded:", eventsData.length)
 
-      // Update table data
-      setTableEvents(eventsData)
-      setFilteredEvents(eventsData)
-      setIsUsingDemoData(false)
+    //   // Update table data
+    //   // setTableEvents(eventsData)
+    //   // setFilteredEvents(eventsData)
+    //   setIsUsingDemoData(true)
 
-      // Update pagination state
-      setPaginationState({
-        currentPage: paginationData.page,
-        totalPages: paginationData.total_pages,
-        totalItems: paginationData.total_events,
-        pageSize: paginationData.page_size,
-        hasNext: paginationData.has_next,
-        hasPrevious: paginationData.has_previous,
-      })
+    //   // Update pagination state
+    //   setPaginationState({
+    //     currentPage: paginationData.page,
+    //     totalPages: paginationData.total_pages,
+    //     totalItems: paginationData.total_events,
+    //     pageSize: paginationData.page_size,
+    //     hasNext: paginationData.has_next,
+    //     hasPrevious: paginationData.has_previous,
+    //   })
 
-      setError(null)
-      return eventsData
-    } catch (err: any) {
-      console.error("❌ Error fetching table data:", err)
-      setError(err.message || "Failed to fetch table data")
+    //   setError(null)
+    //   return eventsData
+    // } catch (err: any) {
+    //   console.error("❌ Error fetching table data:", err)
+    //   setError(err.message || "Failed to fetch table data")
 
-      // Load demo data on error
-      if (page === 1) {
-        loadDemoData()
-      }
-      return []
-    } finally {
-      setTableLoading(false)
-    }
+    //   // Load demo data on error
+    //   if (page === 1) {
+    //     loadDemoData()
+    //   }
+    //   return []
+    // } finally {
+    //   setTableLoading(false)
+    // }
   }
 
   // Initial data fetch - ALWAYS load company-wide data first

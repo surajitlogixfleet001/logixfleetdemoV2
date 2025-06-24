@@ -228,7 +228,6 @@ const FuelReport: React.FC = () => {
   // Table filter states (separate from chart)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
 
@@ -361,7 +360,6 @@ const FuelReport: React.FC = () => {
   const clearFilters = () => {
     setStartDate("")
     setEndDate("")
-    setReportPeriod("daily")
     setFilterByLicensePlate("")
     setFilterByIMEI("")
     setSelectedVehicle("all")
@@ -769,25 +767,13 @@ const FuelReport: React.FC = () => {
                       y={15}
                       stroke="#dc2626"
                       strokeDasharray="5 5"
-                      label={{
-                        value: "Low Fuel (15L)",
-                        position: "topLeft",
-                        fill: "#dc2626",
-                        fontWeight: "bold",
-                        fontSize: 12,
-                      }}
+                      label="Low Fuel (15L)"
                     />
                     <ReferenceLine
                       y={5}
                       stroke="#991b1b"
                       strokeDasharray="3 3"
-                      label={{
-                        value: "Critical (5L)",
-                        position: "bottomLeft",
-                        fill: "#991b1b",
-                        fontWeight: "bold",
-                        fontSize: 12,
-                      }}
+                      label="Critical (5L)"
                     />
                     <Line
                       type="monotone"
@@ -831,22 +817,6 @@ const FuelReport: React.FC = () => {
                     <Input id="end-date" type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
                   </div>
                   <div>
-                    <Label htmlFor="report-period">Period</Label>
-                    <Select
-                      value={reportPeriod}
-                      onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="daily">Daily</SelectItem>
-                        <SelectItem value="weekly">Weekly</SelectItem>
-                        <SelectItem value="monthly">Monthly</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
                     <Label htmlFor="vehicle-select">Select Vehicle</Label>
                     <Select value={selectedVehicle} onValueChange={setSelectedVehicle}>
                       <SelectTrigger>
@@ -883,7 +853,7 @@ const FuelReport: React.FC = () => {
                         />
                       </TableHead>
                       <TableHead>Date and Time</TableHead>
-                      <TableHead>Vehicle</TableHead>
+                      {/*<TableHead>Vehicle</TableHead>*/}
                       <TableHead>Fuel Level</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Speed</TableHead>
@@ -906,12 +876,12 @@ const FuelReport: React.FC = () => {
                           <TableCell className="font-mono text-xs">
                             {new Date(data.timestamp).toLocaleString()}
                           </TableCell>
-                          <TableCell>
+                         {/* <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{vehicle?.name || "Unknown"}</span>
                               <span className="text-xs text-muted-foreground">{vehicle?.license_plate || "Unknown"}</span>
                             </div>
-                          </TableCell>
+                          </TableCell>*/}
                           <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
                             {data.fuel_liters}L
                           </TableCell>

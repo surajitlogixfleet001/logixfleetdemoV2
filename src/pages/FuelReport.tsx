@@ -61,6 +61,7 @@ interface FuelRecord {
   satellites: number
   external_voltage: number
   engine_hours: number
+  vehicle_id: number // Add vehicle_id to link records to vehicles
 }
 
 interface FuelDataResponse {
@@ -157,36 +158,41 @@ const demoVehicles: Vehicle[] = [
 const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
   const records: FuelRecord[] = []
   const now = new Date()
-  let currentFuel = 180 // Start with reasonable fuel level
+  
+  // Create records for each vehicle
+  demoVehicles.forEach((vehicle, vehicleIndex) => {
+    let currentFuel = 180 + (vehicleIndex * 30) // Different starting fuel levels
 
-  for (let i = count; i >= 0; i--) {
-    const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000) // Every 15 minutes
+    for (let i = count; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000) // Every 15 minutes
 
-    // Simulate natural fuel consumption
-    const consumption = Math.random() * 2 + 0.5 // 0.5-2.5L per 15min
-    currentFuel = Math.max(10, currentFuel - consumption)
+      // Simulate natural fuel consumption
+      const consumption = Math.random() * 2 + 0.5 // 0.5-2.5L per 15min
+      currentFuel = Math.max(10, currentFuel - consumption)
 
-    // Occasionally refuel
-    if (Math.random() < 0.02 && currentFuel < 100) {
-      currentFuel = Math.min(250, currentFuel + Math.random() * 150 + 100)
+      // Occasionally refuel
+      if (Math.random() < 0.02 && currentFuel < 100) {
+        currentFuel = Math.min(250, currentFuel + Math.random() * 150 + 100)
+      }
+
+      records.push({
+        timestamp: timestamp.toISOString(),
+        fuel_liters: Math.round(currentFuel * 10) / 10,
+        odometer: 50000 + (count - i) * 2 + (vehicleIndex * 1000),
+        latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
+        longitude: -74.006 + (Math.random() - 0.5) * 0.1,
+        speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20,
+        ignition: Math.random() < 0.8,
+        movement: Math.random() < 0.7,
+        satellites: Math.floor(Math.random() * 8) + 4,
+        external_voltage: 12.0 + Math.random() * 2,
+        engine_hours: 1000 + (count - i) * 0.25 + (vehicleIndex * 100),
+        vehicle_id: vehicle.id,
+      })
     }
+  })
 
-    records.push({
-      timestamp: timestamp.toISOString(),
-      fuel_liters: Math.round(currentFuel * 10) / 10,
-      odometer: 50000 + (count - i) * 2,
-      latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
-      longitude: -74.006 + (Math.random() - 0.5) * 0.1,
-      speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20,
-      ignition: Math.random() < 0.8,
-      movement: Math.random() < 0.7,
-      satellites: Math.floor(Math.random() * 8) + 4,
-      external_voltage: 12.0 + Math.random() * 2,
-      engine_hours: 1000 + (count - i) * 0.25,
-    })
-  }
-
-  return records.reverse()
+  return records.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
 }
 
 const FuelReport: React.FC = () => {
@@ -225,6 +231,11 @@ const FuelReport: React.FC = () => {
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
+
+  // Helper function to get vehicle by ID
+  const getVehicleById = (vehicleId: number): Vehicle | undefined => {
+    return vehicles.find(v => v.id === vehicleId)
+  }
 
   // Load demo data immediately on component mount
   const loadDemoData = () => {
@@ -297,16 +308,32 @@ const FuelReport: React.FC = () => {
       filtered = filtered.filter((d) => new Date(d.timestamp) <= end)
     }
 
+    // Vehicle filter by selection
+    if (selectedVehicle !== "all") {
+      const vehicle = vehicles.find(v => v.license_plate === selectedVehicle)
+      if (vehicle) {
+        filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
+      }
+    }
+
     // Vehicle filter by license plate
     if (filterByLicensePlate) {
-      // In a real app, you'd filter by vehicle data associated with records
-      // For demo, we'll simulate this
+      const vehicle = vehicles.find(v => 
+        v.license_plate.toLowerCase().includes(filterByLicensePlate.toLowerCase())
+      )
+      if (vehicle) {
+        filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
+      }
     }
 
     // Vehicle filter by IMEI
     if (filterByIMEI) {
-      // In a real app, you'd filter by IMEI associated with records
-      // For demo, we'll simulate this
+      const vehicle = vehicles.find(v => 
+        v.imei.toLowerCase().includes(filterByIMEI.toLowerCase())
+      )
+      if (vehicle) {
+        filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
+      }
     }
 
     // Store all filtered data for download
@@ -337,6 +364,7 @@ const FuelReport: React.FC = () => {
     setReportPeriod("daily")
     setFilterByLicensePlate("")
     setFilterByIMEI("")
+    setSelectedVehicle("all")
     
     // Reset to original data
     setAllFilteredData(fuelRecords)
@@ -379,6 +407,8 @@ const FuelReport: React.FC = () => {
     
     const headers = [
       "Date and Time",
+      "Vehicle",
+      "License Plate",
       "Fuel Level (L)",
       "Odometer",
       "Latitude",
@@ -393,8 +423,11 @@ const FuelReport: React.FC = () => {
     
     const csvRows = [headers.join(",")]
     dataToDownload.forEach((d) => {
+      const vehicle = getVehicleById(d.vehicle_id)
       const row = [
         d.timestamp,
+        vehicle?.name || "Unknown",
+        vehicle?.license_plate || "Unknown",
         d.fuel_liters,
         d.odometer,
         d.latitude,
@@ -438,7 +471,17 @@ const FuelReport: React.FC = () => {
         startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000)
     }
 
-    const filteredData = fuelRecords
+    let chartData = fuelRecords
+
+    // Filter by selected chart vehicle
+    if (selectedChartVehicle !== "all") {
+      const vehicle = vehicles.find(v => v.license_plate === selectedChartVehicle)
+      if (vehicle) {
+        chartData = chartData.filter(d => d.vehicle_id === vehicle.id)
+      }
+    }
+
+    const filteredData = chartData
       .filter((d) => new Date(d.timestamp) >= startTime)
       .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
 
@@ -709,6 +752,12 @@ const FuelReport: React.FC = () => {
                       textAnchor="middle"
                       height={80}
                       interval={0}
+                      label={{ 
+                        value: chartTimePeriod === "day" ? "Time Period (Hours)" : "Day of Week", 
+                        position: "insideBottom", 
+                        offset: -10,
+                        style: { textAnchor: 'middle', fontSize: '14px', fontWeight: 'bold' }
+                      }}
                     />
                     <YAxis
                       tick={{ fontSize: 12 }}
@@ -834,6 +883,7 @@ const FuelReport: React.FC = () => {
                         />
                       </TableHead>
                       <TableHead>Date and Time</TableHead>
+                      <TableHead>Vehicle</TableHead>
                       <TableHead>Fuel Level</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Speed</TableHead>
@@ -842,40 +892,49 @@ const FuelReport: React.FC = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredData.map((data) => (
-                      <TableRow key={data.timestamp} className="hover:bg-muted/50">
-                        <TableCell>
-                          <Checkbox
-                            checked={selectedRecords.includes(data.timestamp)}
-                            onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
-                            aria-label={`Select record ${data.timestamp}`}
-                          />
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {new Date(data.timestamp).toLocaleString()}
-                        </TableCell>
-                        <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
-                          {data.fuel_liters}L
-                        </TableCell>
-                        <TableCell className="font-mono text-xs">
-                          {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
-                        </TableCell>
-                        <TableCell>{data.speed} km/h</TableCell>
-                        <TableCell>
-                          <div className="flex gap-1">
-                            <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
-                              {data.ignition ? "ON" : "OFF"}
-                            </Badge>
-                            {data.movement && (
-                              <Badge variant="outline" className="text-xs">
-                                MOVING
+                    {filteredData.map((data) => {
+                      const vehicle = getVehicleById(data.vehicle_id)
+                      return (
+                        <TableRow key={data.timestamp} className="hover:bg-muted/50">
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedRecords.includes(data.timestamp)}
+                              onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
+                              aria-label={`Select record ${data.timestamp}`}
+                            />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {new Date(data.timestamp).toLocaleString()}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex flex-col">
+                              <span className="font-medium">{vehicle?.name || "Unknown"}</span>
+                              <span className="text-xs text-muted-foreground">{vehicle?.license_plate || "Unknown"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
+                            {data.fuel_liters}L
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {data.latitude.toFixed(4)}, {data.longitude.toFixed(4)}
+                          </TableCell>
+                          <TableCell>{data.speed} km/h</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Badge variant={data.ignition ? "default" : "secondary"} className="text-xs">
+                                {data.ignition ? "ON" : "OFF"}
                               </Badge>
-                            )}
-                          </div>
-                        </TableCell>
-                        <TableCell>{data.engine_hours}h</TableCell>
-                      </TableRow>
-                    ))}
+                              {data.movement && (
+                                <Badge variant="outline" className="text-xs">
+                                  MOVING
+                                </Badge>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell>{data.engine_hours}h</TableCell>
+                        </TableRow>
+                      )
+                    })}
                   </TableBody>
                 </Table>
               </ScrollArea>

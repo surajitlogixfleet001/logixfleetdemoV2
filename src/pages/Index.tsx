@@ -276,7 +276,7 @@ const Index = () => {
                           <div className="flex items-center gap-2">
                             <CalendarClock className="h-4 w-4 text-orange-600" />
                             <span className="text-sm font-medium text-orange-800">
-                              monthly Savings
+                              Monthly Savings
                             </span>
                           </div>
                           <span className="text-base md:text-lg font-semibold text-orange-700">

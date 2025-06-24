@@ -50,6 +50,7 @@ interface Vehicle {
 }
 
 interface FuelRecord {
+  id: string // Add unique ID for each record
   timestamp: string
   fuel_liters: number
   odometer: number
@@ -158,13 +159,14 @@ const demoVehicles: Vehicle[] = [
 const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
   const records: FuelRecord[] = []
   const now = new Date()
+  let recordId = 1
   
   // Create records for each vehicle
   demoVehicles.forEach((vehicle, vehicleIndex) => {
     let currentFuel = 180 + (vehicleIndex * 30) // Different starting fuel levels
 
     for (let i = count; i >= 0; i--) {
-      const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000) // Every 15 minutes
+      const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000 + vehicleIndex * 1000) // Add small offset to avoid exact duplicates
 
       // Simulate natural fuel consumption
       const consumption = Math.random() * 2 + 0.5 // 0.5-2.5L per 15min
@@ -176,6 +178,7 @@ const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
       }
 
       records.push({
+        id: `record-${recordId++}`, // Unique ID for each record
         timestamp: timestamp.toISOString(),
         fuel_liters: Math.round(currentFuel * 10) / 10,
         odometer: 50000 + (count - i) * 2 + (vehicleIndex * 1000),
@@ -387,7 +390,7 @@ const FuelReport: React.FC = () => {
   }
 
   const toggleSelectAllPage = (checked: boolean) => {
-    const ids = filteredData.map((d) => d.timestamp)
+    const ids = filteredData.map((d) => d.id) // Use unique id instead of timestamp
     setSelectedRecords((prev) =>
       checked ? Array.from(new Set([...prev, ...ids])) : prev.filter((id) => !ids.includes(id)),
     )
@@ -397,7 +400,7 @@ const FuelReport: React.FC = () => {
     // For "Download All", use all filtered data; for "Download Selected", use only selected records
     const dataToDownload = downloadAll
       ? allFilteredData.length > 0 ? allFilteredData : fuelRecords // Download all filtered data or all data if no filters applied
-      : filteredData.filter((d) => selectedRecords.includes(d.timestamp))
+      : filteredData.filter((d) => selectedRecords.includes(d.id)) // Use unique id instead of timestamp
     
     if (!downloadAll && dataToDownload.length === 0) {
       return
@@ -578,7 +581,7 @@ const FuelReport: React.FC = () => {
   const trend = currentLevel > prevLevel ? "up" : "down"
 
   const allCurrentPageSelected =
-    filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.timestamp))
+    filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.id)) // Use unique id instead of timestamp
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -853,7 +856,7 @@ const FuelReport: React.FC = () => {
                         />
                       </TableHead>
                       <TableHead>Date and Time</TableHead>
-                      {/*<TableHead>Vehicle</TableHead>*/}
+                      <TableHead>Vehicle</TableHead>
                       <TableHead>Fuel Level</TableHead>
                       <TableHead>Location</TableHead>
                       <TableHead>Speed</TableHead>
@@ -865,23 +868,23 @@ const FuelReport: React.FC = () => {
                     {filteredData.map((data) => {
                       const vehicle = getVehicleById(data.vehicle_id)
                       return (
-                        <TableRow key={data.timestamp} className="hover:bg-muted/50">
+                        <TableRow key={data.id} className="hover:bg-muted/50">
                           <TableCell>
                             <Checkbox
-                              checked={selectedRecords.includes(data.timestamp)}
-                              onCheckedChange={(checked) => handleRecordSelection(data.timestamp, checked as boolean)}
-                              aria-label={`Select record ${data.timestamp}`}
+                              checked={selectedRecords.includes(data.id)}
+                              onCheckedChange={(checked) => handleRecordSelection(data.id, checked as boolean)}
+                              aria-label={`Select record ${data.id}`}
                             />
                           </TableCell>
                           <TableCell className="font-mono text-xs">
                             {new Date(data.timestamp).toLocaleString()}
                           </TableCell>
-                         {/* <TableCell>
+                          <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{vehicle?.name || "Unknown"}</span>
                               <span className="text-xs text-muted-foreground">{vehicle?.license_plate || "Unknown"}</span>
                             </div>
-                          </TableCell>*/}
+                          </TableCell>
                           <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
                             {data.fuel_liters}L
                           </TableCell>

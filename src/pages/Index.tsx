@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart,Label, Line } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
+import { InfoTooltip } from "@/components/InfoTooltip"
 
 // Mock data for fuel events
 const fuelEventData = [
@@ -302,7 +303,7 @@ const Index = () => {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-bold text-foreground">Fuel Theft Amount</CardTitle>
-                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <InfoTooltip content="Total Amount of fuel stolen from your fleet vehicles. This includes detected unauthorized fuel drainage, siphoning, and tank tampering incidents. Calculated using sensor data and fuel level monitoring." />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -356,7 +357,7 @@ const Index = () => {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-bold text-foreground">Fuel Event volume</CardTitle>
-                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <InfoTooltip content="Total volume of all fuel events including refills, consumption, and thefts across your entire fleet. This gives you a comprehensive view of fuel activity and helps track overall fuel management performance." />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -410,7 +411,7 @@ const Index = () => {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-bold text-foreground">Fleet fuel efficiency</CardTitle>
-                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <InfoTooltip content="Average fuel efficiency score across your fleet, calculated based on fuel consumption per kilometer, vehicle performance metrics, and driving patterns. Higher scores indicate better fuel utilization and cost savings." />
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -467,7 +468,10 @@ const Index = () => {
                 {/* Vehicle Theft Rankings */}
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-base font-bold text-foreground">Top vehicles by fuel theft</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base font-bold text-foreground">Top vehicles by fuel theft</CardTitle>
+                      <InfoTooltip content="Ranking of vehicles with the highest fuel theft incidents and volumes. Helps identify which vehicles require enhanced security measures or monitoring. Data includes theft volume and incident frequency." />
+                    </div>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
@@ -517,7 +521,7 @@ const Index = () => {
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-bold text-foreground">New vehicles added</CardTitle>
-                      <Info className="h-4 w-4 text-muted-foreground" />
+                      <InfoTooltip content="Number of new vehicles added to your fleet monitoring system. Track fleet expansion and ensure all new vehicles are properly configured with fuel monitoring sensors and tracking systems." />
                       <Badge variant="secondary" className="text-xs ml-auto">
                         0.0%
                       </Badge>
@@ -572,7 +576,7 @@ const Index = () => {
                         <CardTitle className="text-base font-bold text-foreground">
                           Top vehicles by efficiency
                         </CardTitle>
-                        <Info className="h-4 w-4 text-muted-foreground" />
+                        <InfoTooltip content="Ranking of your most fuel-efficient vehicles based on consumption per kilometer, maintenance records, and driving patterns. Use this data to identify best practices and optimize fleet performance." />
                       </div>
                       <span className="text-sm text-muted-foreground">All time</span>
                     </div>

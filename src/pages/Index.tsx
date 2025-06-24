@@ -270,12 +270,12 @@ const Index = () => {
                           </span>
                         </div>
 
-                        {/* Monthly Savings */}
+                        {/* monthly Savings */}
                         <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 border border-orange-100">
                           <div className="flex items-center gap-2">
                             <CalendarClock className="h-4 w-4 text-orange-600" />
                             <span className="text-sm font-medium text-orange-800">
-                              Monthly Savings
+                              monthly Savings
                             </span>
                           </div>
                           <span className="text-base md:text-lg font-semibold text-orange-700">
@@ -312,7 +312,7 @@ const Index = () => {
                         <Badge variant="destructive" className="text-xs">
                           +12.5%
                         </Badge>
-                        <span className="text-sm text-muted-foreground">247L previous Month</span>
+                        <span className="text-sm text-muted-foreground">247L previous month</span>
                       </div>
                     </div>
 
@@ -366,7 +366,7 @@ const Index = () => {
                         <Badge variant="secondary" className="text-xs bg-green-100 text-green-700">
                           +8.2%
                         </Badge>
-                        <span className="text-sm text-muted-foreground">3,925L previous Month</span>
+                        <span className="text-sm text-muted-foreground">3,925L previous month</span>
                       </div>
                     </div>
 
@@ -420,7 +420,7 @@ const Index = () => {
                         <Badge variant="secondary" className="text-xs bg-blue-100 text-blue-700">
                           +2.1%
                         </Badge>
-                        <span className="text-sm text-muted-foreground">85.2% previous Month</span>
+                        <span className="text-sm text-muted-foreground">85.2% previous month</span>
                       </div>
                     </div>
 
@@ -506,7 +506,7 @@ const Index = () => {
 
                     <div className="pt-4 border-t border-muted mt-4">
                       <div className="text-xs text-muted-foreground">
-                        Total stolen: 156L across 9 incidents this Month
+                        Total stolen: 156L across 9 incidents this month
                       </div>
                     </div>
                   </CardContent>
@@ -526,7 +526,7 @@ const Index = () => {
                   <CardContent className="space-y-4">
                     <div className="space-y-2">
                       <div className="text-2xl md:text-3xl font-normal text-foreground">2</div>
-                      <div className="text-sm text-muted-foreground">1 previous Month</div>
+                      <div className="text-sm text-muted-foreground">1 previous month</div>
                     </div>
 
                     <div className="h-12 md:h-16">

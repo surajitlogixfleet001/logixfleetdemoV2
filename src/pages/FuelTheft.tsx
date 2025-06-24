@@ -676,7 +676,7 @@ const FuelTheft = () => {
     //     totalItems: paginationData.total_events,
     //     pageSize: paginationData.page_size,
     //     hasNext: paginationData.has_next,
-    //     hasPrevious: paginationData.has_previous,
+    //     has_previous: paginationData.has_previous,
     //   })
     //   setError(null)
     //   return eventsData
@@ -972,37 +972,39 @@ const FuelTheft = () => {
       return
     }
 
-    const headers = [
-      "ID",
-      "Vehicle",
-      "Event Type",
-      "Timestamp",
-      "Previous Level (L)",
-      "Current Level (L)",
-      "Change Amount (L)",
-      "Latitude",
-      "Longitude",
-      "Speed",
-      "Ignition",
-    ]
-    const rows = selectedEvents.map((e) =>
-      [
-        e.id,
-        `"${e.vehicle.license_plate}"`,
-        `"${e.event_type}"`,
-        e.timestamp,
-        e.fuel_change.before_liters,
-        e.fuel_change.after_liters,
-        e.fuel_change.amount_liters,
-        e.location.latitude,
-        e.location.longitude,
-        e.vehicle_state.speed,
-        e.vehicle_state.ignition ? "Yes" : "No",
-      ].join(","),
-    )
-    const csvContent = [headers.join(","), ...rows].join("\n")
+    const headers = ["Event", "Vehicle", "Date and Time", "Fuel Change", "Location", "Vehicle State"]
+    const data = selectedEvents.map((e) => ({
+      Event: e.event_type.charAt(0).toUpperCase() + e.event_type.slice(1),
+      Vehicle: e.vehicle.license_plate,
+      "Date and Time": new Date(e.timestamp).toLocaleString(),
+      "Fuel Change": `${e.event_type === "theft" ? "-" : "+"}${Math.abs(e.fuel_change.amount_liters)}L`,
+      Location: `${e.location.latitude.toFixed(4)}, ${e.location.longitude.toFixed(4)}`,
+      "Vehicle State": `${e.vehicle_state.ignition ? "ON" : "OFF"}, ${e.vehicle_state.speed} km/h`,
+    }))
+
+    if (data.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No fuel events available for download.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const csvContent = [
+      headers.join(","),
+      ...data.map((row) =>
+        headers
+          .map((header) => {
+            const value = row[header as keyof typeof row]
+            return typeof value === "string" && value.includes(",") ? `"${value}"` : value
+          })
+          .join(","),
+      ),
+    ].join("\n")
+
     const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
+    const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
     a.download = `selected-fuel-events-${new Date().toISOString().split("T")[0]}.csv`
@@ -1010,45 +1012,48 @@ const FuelTheft = () => {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+
     toast({
       title: "Download Complete",
-      description: `Downloaded ${selectedEvents.length} selected records.`,
+      description: `Downloaded ${data.length} records.`,
     })
   }
 
   // Download all records (rename existing function)
   const downloadAllCSV = () => {
-    const headers = [
-      "ID",
-      "Vehicle",
-      "Event Type",
-      "Timestamp",
-      "Previous Level (L)",
-      "Current Level (L)",
-      "Change Amount (L)",
-      "Latitude",
-      "Longitude",
-      "Speed",
-      "Ignition",
-    ]
-    const rows = filteredEvents.map((e) =>
-      [
-        e.id,
-        `"${e.vehicle.license_plate}"`,
-        `"${e.event_type}"`,
-        e.timestamp,
-        e.fuel_change.before_liters,
-        e.fuel_change.after_liters,
-        e.fuel_change.amount_liters,
-        e.location.latitude,
-        e.location.longitude,
-        e.vehicle_state.speed,
-        e.vehicle_state.ignition ? "Yes" : "No",
-      ].join(","),
-    )
-    const csvContent = [headers.join(","), ...rows].join("\n")
+    const headers = ["Event", "Vehicle", "Date and Time", "Fuel Change", "Location", "Vehicle State"]
+    const data = filteredEvents.map((e) => ({
+      Event: e.event_type.charAt(0).toUpperCase() + e.event_type.slice(1),
+      Vehicle: e.vehicle.license_plate,
+      "Date and Time": new Date(e.timestamp).toLocaleString(),
+      "Fuel Change": `${e.event_type === "theft" ? "-" : "+"}${Math.abs(e.fuel_change.amount_liters)}L`,
+      Location: `${e.location.latitude.toFixed(4)}, ${e.location.longitude.toFixed(4)}`,
+      "Vehicle State": `${e.vehicle_state.ignition ? "ON" : "OFF"}, ${e.vehicle_state.speed} km/h`,
+    }))
+
+    if (data.length === 0) {
+      toast({
+        title: "No Data",
+        description: "No fuel events available for download.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const csvContent = [
+      headers.join(","),
+      ...data.map((row) =>
+        headers
+          .map((header) => {
+            const value = row[header as keyof typeof row]
+            return typeof value === "string" && value.includes(",") ? `"${value}"` : value
+          })
+          .join(","),
+      ),
+    ].join("\n")
+
     const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = URL.createObjectURL(blob)
+    const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
     a.download = `all-fuel-events-${new Date().toISOString().split("T")[0]}.csv`
@@ -1056,9 +1061,10 @@ const FuelTheft = () => {
     a.click()
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
+
     toast({
       title: "Download Complete",
-      description: `Downloaded ${filteredEvents.length} records.`,
+      description: `Downloaded ${data.length} records.`,
     })
   }
 
@@ -1349,6 +1355,18 @@ const FuelTheft = () => {
                 </Button>
               </div>
             </CardHeader>
+            <div className="px-6 pb-6">
+              <div className="flex flex-wrap gap-4 justify-center">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                  <span className="text-sm">Theft</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                  <span className="text-sm">Fill</span>
+                </div>
+              </div>
+            </div>
             <CardContent className="p-6">
               <ChartContainer
                 className="h-[600px] w-full"
@@ -1358,17 +1376,19 @@ const FuelTheft = () => {
               >
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={fuelLevelData} margin={{ top: 30, right: 40, left: 40, bottom: 80 }}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="displayTime" tick={{ fontSize: 11 }} angle={-45} textAnchor="end" height={80} />
+                    <CartesianGrid strokeDasharray="0 0" className="stroke-muted" />
+                    <XAxis
+                      dataKey="displayTime"
+                      tick={{ fontSize: 11 }}
+                      angle={-45}
+                      textAnchor="end"
+                      height={80}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <YAxis
                       tick={{ fontSize: 12 }}
-                      domain={[
-                        0,
-                        Math.max(
-                          250,
-                          ...fuelLevelData.map((d) => d.level || 0)
-                        ),
-                      ]}
+                      domain={[0, Math.max(250, ...fuelLevelData.map((d) => d.level || 0))]}
                       label={{ value: "Fuel Level (L)", angle: -90, position: "insideLeft" }}
                     />
                     <Tooltip content={<CustomTooltip />} />
@@ -1402,18 +1422,7 @@ const FuelTheft = () => {
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
-            <div className="px-6 pb-6">
-              <div className="flex flex-wrap gap-4 justify-center">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <span className="text-sm">Theft</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span className="text-sm">Fill</span>
-                </div>
-              </div>
-            </div>
+            
           </Card>
 
           {/* Filters */}
@@ -1543,21 +1552,6 @@ const FuelTheft = () => {
                     )}
                     <span className="hidden sm:inline">Refresh Table</span>
                     <span className="sm:hidden">Refresh</span>
-                  </Button>
-                  <Button onClick={downloadAllCSV} variant="outline" size="sm" disabled={filteredEvents.length === 0}>
-                    <Download className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Download All</span>
-                    <span className="sm:hidden">All</span>
-                  </Button>
-                  <Button
-                    onClick={downloadSelectedCSV}
-                    variant="outline"
-                    size="sm"
-                    disabled={selectedRecords.size === 0}
-                  >
-                    <Download className="h-4 w-4 mr-2" />
-                    <span className="hidden sm:inline">Download Selected ({selectedRecords.size})</span>
-                    <span className="sm:hidden">Selected ({selectedRecords.size})</span>
                   </Button>
                 </div>
               </div>
@@ -1692,8 +1686,11 @@ const FuelTheft = () => {
                                 <div>
                                   <Label className="text-sm font-medium">Vehicle State</Label>
                                   <div className="flex flex-wrap gap-2 mt-1">
-                                    <Badge variant={selectedEvent.vehicle_state.ignition ? "default" : "secondary"}>
-                                      {selectedEvent.vehicle_state.ignition ? "Ignition ON" : "Ignition OFF"}
+                                    <Badge
+                                      variant={selectedEvent.vehicle_state.ignition ? "default" : "secondary"}
+                                      className={`text-xs ${selectedEvent.vehicle_state.ignition ? "bg-green-600 hover:bg-green-700 text-white" : "bg-gray-600 hover:bg-gray-700 text-white"}`}
+                                    >
+                                      {selectedEvent.vehicle_state.ignition ? "ON" : "OFF"}
                                     </Badge>
                                     <Badge variant="outline">Speed: {selectedEvent.vehicle_state.speed} km/h</Badge>
                                     <Badge variant={selectedEvent.vehicle_state.stationary ? "secondary" : "outline"}>
@@ -1711,6 +1708,18 @@ const FuelTheft = () => {
                 </TableBody>
               </Table>
             </CardContent>
+            <div className="mt-4 flex justify-end gap-2">
+              <Button onClick={downloadAllCSV} variant="outline" size="sm" disabled={filteredEvents.length === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Download All</span>
+                <span className="sm:hidden">All</span>
+              </Button>
+              <Button onClick={downloadSelectedCSV} variant="outline" size="sm" disabled={selectedRecords.size === 0}>
+                <Download className="h-4 w-4 mr-2" />
+                <span className="hidden sm:inline">Download Selected ({selectedRecords.size})</span>
+                <span className="sm:hidden">Selected ({selectedRecords.size})</span>
+              </Button>
+            </div>
           </Card>
         </main>
       </div>

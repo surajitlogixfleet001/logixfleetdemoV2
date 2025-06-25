@@ -100,13 +100,7 @@ const Index = () => {
                 
                 {/* Search and Actions */}
                 <div className="flex items-center gap-2 md:gap-4">
-                  <div className="relative flex-1 md:flex-none">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-                    <Input
-                      placeholder="Search"
-                      className="pl-10 w-full md:w-80 bg-background border border-muted rounded-md text-sm font-normal"
-                    />
-                  </div>
+                 
                   
                   <div className="flex items-center gap-2 md:gap-3">
                     <div className="relative">
@@ -185,26 +179,46 @@ const Index = () => {
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart
                             data={fuelEventData}
-                            margin={{ top: 20, right: 15, left: 10, bottom: 5 }}
+                            margin={{ top: 20, right: 15, left: 10, bottom: 40 }} // room for the X label
                           >
                             <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+
+                            {/* X-Axis: visible line/ticks + “Date” label */}
                             <XAxis
                               dataKey="date"
-                              axisLine={false}
-                              tickLine={false}
+                              axisLine={true}
+                              tickLine={true}
                               tick={{ fontSize: 12, fill: "#334155" }}
                               interval="preserveStartEnd"
-                            />
+                            >
+                              <Label
+                                value="Date Period"
+                                position="insideBottom"
+                                offset={-10}
+                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
+                              />
+                            </XAxis>
+
+                            {/* Y-Axis: visible line/ticks + main label + original Refill/Theft labels */}
                             <YAxis
-                              axisLine={false}
-                              tickLine={false}
+                              axisLine={true}
+                              tickLine={true}
                               tick={{ fontSize: 12, fill: "#334155" }}
                             >
+                              {/* Main descriptive label */}
+                              <Label
+                                value="Volume (Liters)"
+                                angle={-90}
+                                position="insideLeft"
+                                offset={20}
+                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
+                              />
+                              {/* Your original two labels */}
                               <Label
                                 value="Refill"
                                 position="insideTop"
                                 offset={50}
-                                dx={-20}
+                                dx={-25}
                                 style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
                               />
                               <Label
@@ -215,6 +229,7 @@ const Index = () => {
                                 style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
                               />
                             </YAxis>
+
                             <ChartTooltip
                               content={<ChartTooltipContent />}
                               formatter={(value, name) => [
@@ -222,10 +237,12 @@ const Index = () => {
                                 name === "refill" ? "Fuel Refill" : "Fuel Theft",
                               ]}
                             />
+
                             <Bar dataKey="refill" fill="#fbbf24" radius={[2, 2, 0, 0]} />
-                            <Bar dataKey="theft" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="theft"  fill="#ef4444" radius={[2, 2, 0, 0]} />
                           </ComposedChart>
                         </ResponsiveContainer>
+
                       </ChartContainer>
                     </CardContent>
                   </Card>
@@ -233,60 +250,57 @@ const Index = () => {
 
                 {/* ROI Section */}
                 <div className="space-y-4 md:space-y-6">
-                  <Card className="border-0 shadow-sm bg-gradient-to-br from-background to-muted/20">
-                    <CardHeader className="flex items-center justify-between pb-4 md:pb-6">
-                      <div className="pt-4 border-t border-muted w-full">
-                        <div className="text-center">
-                          <div className="text-lg md:text-2xl font-bold text-foreground mb-1">
-                            Fuel Savings Performance
-                          </div>
-                        </div>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-4 md:space-y-6">
-                      <div className="space-y-4 md:space-y-5">
-                        {/* Year-to-Date Savings */}
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-green-50 border border-green-100">
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-green-600" />
-                            <span className="text-sm font-medium text-green-800">
-                              Yearly Savings
-                            </span>
-                          </div>
-                          <span className="text-base md:text-lg font-semibold text-green-700">
-                            Kshs.47,230
-                          </span>
-                        </div>
+      <Card className="border border-gray-400 shadow-lg rounded-2xl bg-white hover:shadow-lg transition-shadow">
+        <CardHeader className="pb-4 md:pb-6 border-b border-gray-100">
+          <div className="text-center pt-4">
+            <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+              Fuel Savings Performance
+            </h2>
+          </div>
+        </CardHeader>
 
-                        {/* Quarterly Savings */}
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-blue-50 border border-blue-100">
-                          <div className="flex items-center gap-2">
-                            <CalendarDays className="h-4 w-4 text-blue-600" />
-                            <span className="text-sm font-medium text-blue-800">
-                              Quarterly Savings
-                            </span>
-                          </div>
-                          <span className="text-base md:text-lg font-semibold text-blue-700">
-                            Kshs.12,450
-                          </span>
-                        </div>
+        <CardContent className="py-6 px-4 md:px-6 space-y-4">
+          {/* Year-to-Date Savings */}
+          <div className="flex items-center p-4 rounded-lg bg-green-50 border border-green-200">
+            <Calendar className="h-6 w-6 text-green-600 mr-3" />
+            <div>
+              <div className="text-sm font-medium text-green-800">
+                Yearly Savings
+              </div>
+              <div className="text-lg font-semibold text-green-700">
+                Kshs.47,230
+              </div>
+            </div>
+          </div>
 
-                        {/* monthly Savings */}
-                        <div className="flex justify-between items-center p-3 rounded-lg bg-orange-50 border border-orange-100">
-                          <div className="flex items-center gap-2">
-                            <CalendarClock className="h-4 w-4 text-orange-600" />
-                            <span className="text-sm font-medium text-orange-800">
-                              Monthly Savings
-                            </span>
-                          </div>
-                          <span className="text-base md:text-lg font-semibold text-orange-700">
-                            Kshs.4,125
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
+          {/* Quarterly Savings */}
+          <div className="flex items-center p-4 rounded-lg bg-blue-50 border border-blue-200">
+            <CalendarDays className="h-6 w-6 text-blue-600 mr-3" />
+            <div>
+              <div className="text-sm font-medium text-blue-800">
+                Quarterly Savings
+              </div>
+              <div className="text-lg font-semibold text-blue-700">
+                Kshs.12,450
+              </div>
+            </div>
+          </div>
+
+          {/* Monthly Savings */}
+          <div className="flex items-center p-4 rounded-lg bg-orange-50 border border-orange-200">
+            <CalendarClock className="h-6 w-6 text-orange-600 mr-3" />
+            <div>
+              <div className="text-sm font-medium text-orange-800">
+                Monthly Savings
+              </div>
+              <div className="text-lg font-semibold text-orange-700">
+                Kshs.4,125
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
               </div>
             </div>
 
@@ -356,7 +370,7 @@ const Index = () => {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-bold text-foreground">Fuel Event volume</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">fuel fill volume</CardTitle>
                       <InfoTooltip content="Total volume of all fuel events including refills, consumption, and thefts across your entire fleet. This gives you a comprehensive view of fuel activity and helps track overall fuel management performance." />
                     </div>
                   </CardHeader>
@@ -449,12 +463,7 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-                      <a
-                        href="/dashboard/fuel-report"
-                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                      >
-                        View more
-                      </a>                        
+                                            
                       <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
@@ -523,7 +532,7 @@ const Index = () => {
                       <CardTitle className="text-base font-bold text-foreground">New vehicles added</CardTitle>
                       <InfoTooltip content="Number of new vehicles added to your fleet monitoring system. Track fleet expansion and ensure all new vehicles are properly configured with fuel monitoring sensors and tracking systems." />
                       <Badge variant="secondary" className="text-xs ml-auto">
-                        0.0%
+                      
                       </Badge>
                     </div>
                   </CardHeader>
@@ -578,7 +587,6 @@ const Index = () => {
                         </CardTitle>
                         <InfoTooltip content="Ranking of your most fuel-efficient vehicles based on consumption per kilometer, maintenance records, and driving patterns. Use this data to identify best practices and optimize fleet performance." />
                       </div>
-                      <span className="text-sm text-muted-foreground">All time</span>
                     </div>
                   </CardHeader>
                   <CardContent>

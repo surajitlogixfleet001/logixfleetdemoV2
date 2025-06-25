@@ -162,7 +162,9 @@ const Index = () => {
                 <div className="xl:col-span-2">
                   <Card className="h-[400px] md:h-[500px] border-0 shadow-sm">
                     <CardHeader className="pb-4">
-                      <CardTitle className="text-base font-bold text-foreground">Refill and Theft Graph</CardTitle>
+                      <h2 className="text-xl md:text-2xl font-bold text-gray-800">
+              Refill and Theft Graph
+            </h2>
                     </CardHeader>
                     <CardContent className="h-[320px] md:h-[420px]">
                       <ChartContainer
@@ -186,9 +188,13 @@ const Index = () => {
                               tickLine={true}
                               tick={{ fontSize: 12, fill: "#334155" }}
                               interval="preserveStartEnd"
+                              angle={-45}
+                              textAnchor="end"
+                              height={60}
+                              interval={0}
                             >
                               <Label
-                                value="Date Period"
+                                value="Date"
                                 position="insideBottom"
                                 offset={-10}
                                 style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
@@ -206,20 +212,7 @@ const Index = () => {
                                 style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
                               />
                               {/* Your original two labels */}
-                              <Label
-                                value="Refill"
-                                position="insideTop"
-                                offset={50}
-                                dx={-25}
-                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
-                              />
-                              <Label
-                                value="Theft"
-                                position="insideBottom"
-                                offset={10}
-                                dx={-20}
-                                style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
-                              />
+                           
                             </YAxis>
 
                             <ChartTooltip
@@ -235,6 +228,17 @@ const Index = () => {
                           </ComposedChart>
                         </ResponsiveContainer>
                       </ChartContainer>
+                      {/* Legend */}
+                      <div className="flex items-center justify-center gap-6 mt-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 bg-[#fbbf24] rounded"></div>
+                          <span className="text-sm text-muted-foreground">Fuel Refill</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-4 h-4 bg-[#ef4444] rounded"></div>
+                          <span className="text-sm text-muted-foreground">Fuel Theft</span>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 </div>
@@ -361,7 +365,7 @@ const Index = () => {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-bold text-foreground">fuel fill volume</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">Fuel Fill Volume</CardTitle>
                       <InfoTooltip content="Total volume of all fuel events including refills, consumption, and thefts across your entire fleet. This gives you a comprehensive view of fuel activity and helps track overall fuel management performance." />
                     </div>
                   </CardHeader>
@@ -415,7 +419,7 @@ const Index = () => {
                 <Card className="border-0 shadow-sm">
                   <CardHeader className="pb-4">
                     <div className="flex items-center gap-2">
-                      <CardTitle className="text-base font-bold text-foreground">Fleet fuel efficiency</CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">Fleet Fuel Efficiency</CardTitle>
                       <InfoTooltip content="Average fuel efficiency score across your fleet, calculated based on fuel consumption per kilometer, vehicle performance metrics, and driving patterns. Higher scores indicate better fuel utilization and cost savings." />
                     </div>
                   </CardHeader>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -142,64 +142,92 @@ const demoFuelEvents: FuelEvent[] = [
   {
     id: "demo_001",
     event_type: "fill",
-    vehicle: { license_plate: "KDA381X", name: "Fleet Truck 001" },
+    vehicle: { license_plate: "KDA381X", name: "KDA381X" },
     timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 hours ago
     location: { latitude: 40.7128, longitude: -74.006 },
-    fuel_change: { amount_liters: 180, before_liters: 45, after_liters: 225 },
+    fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
+
   {
     id: "demo_002",
     event_type: "theft",
-    vehicle: { license_plate: "KDE386N", name: "Fleet Van 002" },
+    vehicle: { license_plate: "KDE386N", name: "KDE386N" },
     timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(), // 18 hours ago
     location: { latitude: 40.7589, longitude: -73.9851 },
-    fuel_change: { amount_liters: -35, before_liters: 120, after_liters: 85 },
+    fuel_change: { amount_liters: -8.7, before_liters: 55.4, after_liters: 46.7 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
   {
     id: "demo_003",
-    event_type: "fill",
-    vehicle: { license_plate: "KDE366F", name: "Fleet Truck 003" },
+    event_type: "theft",
+    vehicle: { license_plate: "KDE366F", name: "KDE366F" },
     timestamp: new Date(Date.now() - 15 * 60 * 60 * 1000).toISOString(), // 15 hours ago
     location: { latitude: 40.6892, longitude: -74.0445 },
-    fuel_change: { amount_liters: 200, before_liters: 30, after_liters: 230 },
+    fuel_change: { amount_liters: 15.2, before_liters: 45.3, after_liters: 30.1 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
   {
     id: "demo_004",
     event_type: "theft",
-    vehicle: { license_plate: "KDA381X", name: "Fleet Truck 001" },
+    vehicle: { license_plate: "KDA381X", name: "KDA381X" },
     timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(), // 12 hours ago
     location: { latitude: 40.7505, longitude: -73.9934 },
-    fuel_change: { amount_liters: -28, before_liters: 200, after_liters: 172 },
+    fuel_change: { amount_liters: -18.5, before_liters: 52.2, after_liters: 33.7 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
   {
     id: "demo_005",
     event_type: "fill",
-    vehicle: { license_plate: "KDA281Y", name: "Fleet Car 004" },
+    vehicle: { license_plate: "KDE366F", name: "KDE366F" },
     timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(), // 8 hours ago
     location: { latitude: 40.7282, longitude: -73.7949 },
-    fuel_change: { amount_liters: 150, before_liters: 25, after_liters: 175 },
+    fuel_change: { amount_liters: 38.2, before_liters: 22.1, after_liters: 60.3 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
   {
     id: "demo_006",
     event_type: "theft",
-    vehicle: { license_plate: "KDE386N", name: "Fleet Van 002" },
+    vehicle: { license_plate: "KDE386N", name: "KDE386N" },
     timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
     location: { latitude: 40.7831, longitude: -73.9712 },
-    fuel_change: { amount_liters: -22, before_liters: 85, after_liters: 63 },
+    fuel_change: { amount_liters: -22.1, before_liters: 68.3, after_liters: 46.2 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
   {
     id: "demo_007",
     event_type: "fill",
-    vehicle: { license_plate: "KDD261N", name: "Fleet Truck 005" },
+    vehicle: { license_plate: "KDE366F", name: "KDE366F" },
     timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
     location: { latitude: 40.7614, longitude: -73.9776 },
-    fuel_change: { amount_liters: 190, before_liters: 40, after_liters: 230 },
+    fuel_change: { amount_liters: 35.8, before_liters: 20.1, after_liters: 55.9 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_008",
+    event_type: "theft",
+    vehicle: { license_plate: "KDA381X", name: "KDA381X" },
+    timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 hours ago
+    location: { latitude: 40.7128, longitude: -74.006 },
+    fuel_change: { amount_liters: 12.3, before_liters: 48.5, after_liters: 36.2 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_009",
+    event_type: "fill",
+    vehicle: { license_plate: "KDA381X", name: "KDA381X" },
+    timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(), // 23 hours ago
+    location: { latitude: 40.7128, longitude: -74.006 },
+    fuel_change: { amount_liters: 42.8, before_liters: 18.9, after_liters: 61.7 },
+    vehicle_state: { speed: 0, ignition: false, stationary: true },
+  },
+  {
+    id: "demo_010",
+    event_type: "fill",
+    vehicle: { license_plate: "KDE386N", name: "KDE386N" },
+    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
+    location: { latitude: 40.7831, longitude: -73.9712 },
+    fuel_change: { amount_liters: 50.3, before_liters: 25.4, after_liters: 75.7 },
     vehicle_state: { speed: 0, ignition: false, stationary: true },
   },
 ]
@@ -458,6 +486,14 @@ const hasSignificantDataGaps = (events: FuelEvent[], timePeriod: TimePeriod): bo
   return hasVeryFewPoints || mostlyZeros
 }
 
+interface ApiError {
+  message?: string
+  response?: {
+    data?: unknown
+    status?: number
+  }
+}
+
 const FuelTheft = () => {
   // State
   const [vehicles, setVehicles] = useState<Vehicle[]>([])
@@ -467,8 +503,12 @@ const FuelTheft = () => {
   const [selectedEvent, setSelectedEvent] = useState<FuelEvent | null>(null)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "all"
+  const [eventTypeFilter, setEventTypeFilter] = useState("all") // default to "all"
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState("all")
+  const [minFillLiters, setMinFillLiters] = useState("")
+  const [minTheftLiters, setMinTheftLiters] = useState("")
+  const [maxSpeed, setMaxSpeed] = useState("")
+  const [ignitionFilter, setIgnitionFilter] = useState("all")
   const [loading, setLoading] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
   const [chartLoading, setChartLoading] = useState(false)
@@ -501,7 +541,7 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
   }, [vehicles])
 
   // Load demo data
-  const loadDemoData = () => {
+  const loadDemoData = useCallback(() => {
     setVehicles(demoVehicles)
     setAllEvents(demoFuelEvents)
     setTableEvents(demoFuelEvents)
@@ -516,10 +556,10 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
       hasNext: false,
       hasPrevious: false,
     })
-  }
+  }, [])
 
   // Check if fuel data is all zeros or empty
-  const isDataAllZeros = (events: FuelEvent[]): boolean => {
+  const isDataAllZeros = useCallback((events: FuelEvent[]): boolean => {
     if (!events || events.length === 0) return true
 
     // Check if all fuel levels are zero or very close to zero
@@ -539,10 +579,10 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
     })
 
     return allZeros
-  }
+  }, [])
 
   // Fetch vehicles
-  const fetchVehicles = async () => {
+  const fetchVehicles = useCallback(async () => {
     try {
       console.log("🚗 Fetching vehicles...")
       const response = await api.get("/vehicles/")
@@ -551,15 +591,15 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
       setVehicles(vehiclesData)
       console.log("🚗 Vehicles set:", vehiclesData.length, "vehicles")
       return vehiclesData
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("❌ Error fetching vehicles:", err)
       setError("Failed to fetch vehicles data")
       return []
     }
-  }
+  }, [])
 
   // Fetch all events for chart (company-wide or vehicle-specific)
-  const fetchAllEventsForChart = async () => {
+  const fetchAllEventsForChart = useCallback(async () => {
     try {
       setChartLoading(true)
       console.log("📊 Fetching chart data for vehicle filter:", selectedVehicleFilter)
@@ -612,9 +652,13 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
       }
 
       return eventsData
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("❌ Error fetching chart events:", err)
-      setError(err.message || "Failed to fetch fuel events data")
+      if (err instanceof Error) {
+        setError(err.message || "Failed to fetch fuel events data")
+      } else {
+        setError("Failed to fetch fuel events data")
+      }
 
       // Load demo data on error
       loadDemoData()
@@ -622,76 +666,14 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
     } finally {
       setChartLoading(false)
     }
-  }
+  }, [selectedVehicleFilter, toast, isDataAllZeros, loadDemoData])
 
   // Fetch table data with pagination (company-wide or vehicle-specific)
-  const fetchTableData = async (page: number) => {
-    // try {
-    //   setTableLoading(true)
-    //   console.log("📋 Fetching table data for page:", page, "vehicle filter:", selectedVehicleFilter)
-    //   // Build URL - always start with base endpoint
-    //   let url = "/fuel-events/"
-    //   const params = new URLSearchParams()
-    //   params.append("page", page.toString())
-    //   // Add vehicle filter if not "all"
-    //   if (selectedVehicleFilter && selectedVehicleFilter !== "all") {
-    //     params.append("license_plate", selectedVehicleFilter)
-    //   }
-    //   url += "?" + params.toString()
-    //   console.log("📋 Table API URL:", url)
-    //   const response = await api.get(url)
-    //   console.log("📋 Table API response:", response.data)
-    //   // Handle different response formats
-    //   let eventsData: FuelEvent[] = []
-    //   let paginationData = {
-    //     page: page,
-    //     page_size: 50,
-    //     total_events: 0,
-    //     total_pages: 1,
-    //     has_next: false,
-    //     has_previous: false,
-    //   }
-    //   if (response.data.events && Array.isArray(response.data.events)) {
-    //     eventsData = response.data.events
-    //     if (response.data.pagination) {
-    //       paginationData = response.data.pagination
-    //     }
-    //     console.log(eventsData)
-    //   } else if (Array.isArray(response.data)) {
-    //     eventsData = response.data
-    //     paginationData.total_events = eventsData.length
-    //   } else {
-    //     console.warn("📋 Unexpected table data format:", response.data)
-    //     eventsData = []
-    //   }
-    //   console.log("📋 Table events loaded:", eventsData.length)
-    //   // Update table data
-    //   // setTableEvents(eventsData)
-    //   // setFilteredEvents(eventsData)
-    //   setIsUsingDemoData(true)
-    //   // Update pagination state
-    //   setPaginationState({
-    //     currentPage: paginationData.page,
-    //     totalPages: paginationData.total_pages,
-    //     totalItems: paginationData.total_events,
-    //     pageSize: paginationData.page_size,
-    //     hasNext: paginationData.has_next,
-    //     has_previous: paginationData.has_previous,
-    //   })
-    //   setError(null)
-    //   return eventsData
-    // } catch (err: any) {
-    //   console.error("❌ Error fetching table data:", err)
-    //   setError(err.message || "Failed to fetch table data")
-    //   // Load demo data on error
-    //   if (page === 1) {
-    //     loadDemoData()
-    //   }
-    //   return []
-    // } finally {
-    //   setTableLoading(false)
-    // }
-  }
+  const fetchTableData = useCallback(async (page: number): Promise<FuelEvent[]> => {
+    // For now, return empty array since the function is commented out
+    return []
+    // Uncomment and implement the actual logic when needed
+  }, [])
 
   // Initial data fetch - ALWAYS load company-wide data first
   useEffect(() => {
@@ -718,19 +700,30 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
     }
 
     loadRealData()
-  }, [])
+  }, [fetchAllEventsForChart, fetchTableData, fetchVehicles, loadDemoData])
 
   // Handle URL parameters for filtering and scrolling
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
     const filterParam = urlParams.get("filter")
+    const vehicleParam = urlParams.get("vehicle")
     const scrollToParam = urlParams.get("scrollTo")
 
-    // Apply filter if specified
+    console.log("🔗 URL Parameters detected:", { filterParam, vehicleParam, scrollToParam })
+
+    // Apply vehicle filter if specified
+    if (vehicleParam && vehicleParam !== "all") {
+      setSelectedVehicleFilter(vehicleParam)
+      console.log("🚗 Applied vehicle filter from URL:", vehicleParam)
+    }
+
+    // Apply event type filter if specified
     if (filterParam === "fill") {
       setEventTypeFilter("fill")
+      console.log("⛽ Applied fill filter from URL")
     } else if (filterParam === "theft") {
       setEventTypeFilter("theft")
+      console.log("🚨 Applied theft filter from URL")
     }
 
     // Scroll to section if specified
@@ -740,23 +733,153 @@ const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "al
         const tableElement = document.querySelector("[data-table-section]")
         if (tableElement) {
           tableElement.scrollIntoView({ behavior: "smooth", block: "start" })
+          console.log("📜 Scrolled to table section")
         }
       }, 1000)
     }
-  }, [])
+
+    // Show toast notification about applied filters
+    if (filterParam || vehicleParam) {
+      setTimeout(() => {
+        const appliedFilters = []
+        if (vehicleParam && vehicleParam !== "all") appliedFilters.push(`Vehicle: ${vehicleParam}`)
+        if (filterParam && filterParam !== "all") appliedFilters.push(`Event: ${filterParam}`)
+
+        if (appliedFilters.length > 0) {
+          toast({
+            title: "Filters Applied from Navigation",
+            description: `Applied filters: ${appliedFilters.join(", ")}`,
+            duration: 3000,
+          })
+        }
+      }, 1500)
+    }
+  }, [toast])
 
   // When vehicle filter changes, reload data
   useEffect(() => {
-    if (!loading && vehicles.length > 0 && !isUsingDemoData) {
+    // Only reload if not from URL parameters and not using demo data
+    const urlParams = new URLSearchParams(window.location.search)
+    const vehicleParam = urlParams.get("vehicle")
+
+    if (!loading && vehicles.length > 0 && !isUsingDemoData && selectedVehicleFilter !== vehicleParam) {
       console.log("🔄 Vehicle filter changed to:", selectedVehicleFilter)
       fetchAllEventsForChart()
       fetchTableData(1) // Reset to page 1 when vehicle changes
     }
-  }, [selectedVehicleFilter])
-// Auto-apply filters when eventTypeFilter changes
-useEffect(() => {
-  handleFilter()
-}, [eventTypeFilter, startDate, endDate, tableEvents])
+  }, [selectedVehicleFilter, loading, vehicles.length, isUsingDemoData, fetchAllEventsForChart, fetchTableData])
+
+  // Enhanced filter function with all filter options
+  const handleFilter = useCallback(() => {
+    let filtered = tableEvents
+
+    // Date filter
+    if (startDate) {
+      const startDateTime = new Date(startDate)
+      filtered = filtered.filter((e) => new Date(e.timestamp) >= startDateTime)
+    }
+    if (endDate) {
+      const endDateTime = new Date(endDate)
+      filtered = filtered.filter((e) => new Date(e.timestamp) <= endDateTime)
+    }
+
+    // Event type filter
+    if (eventTypeFilter !== "all") {
+      filtered = filtered.filter((e) => e.event_type === eventTypeFilter)
+    }
+
+    // Vehicle filter (already handled at data fetch level, but can be applied here too)
+    if (selectedVehicleFilter !== "all") {
+      filtered = filtered.filter((e) => e.vehicle.license_plate === selectedVehicleFilter)
+    }
+
+    // Minimum fill liters filter
+    if (minFillLiters && !isNaN(Number.parseFloat(minFillLiters))) {
+      const minFill = Number.parseFloat(minFillLiters)
+      filtered = filtered.filter((e) => {
+        if (e.event_type === "fill") {
+          return e.fuel_change.amount_liters >= minFill
+        }
+        return true // Keep non-fill events
+      })
+    }
+
+    // Minimum theft liters filter
+    if (minTheftLiters && !isNaN(Number.parseFloat(minTheftLiters))) {
+      const minTheft = Number.parseFloat(minTheftLiters)
+      filtered = filtered.filter((e) => {
+        if (e.event_type === "theft") {
+          return Math.abs(e.fuel_change.amount_liters) >= minTheft
+        }
+        return true // Keep non-theft events
+      })
+    }
+
+    // Maximum speed filter
+    if (maxSpeed && !isNaN(Number.parseFloat(maxSpeed))) {
+      const maxSpeedValue = Number.parseFloat(maxSpeed)
+      filtered = filtered.filter((e) => e.vehicle_state.speed <= maxSpeedValue)
+    }
+
+    // Ignition filter
+    if (ignitionFilter !== "all") {
+      const ignitionOn = ignitionFilter === "on"
+      filtered = filtered.filter((e) => e.vehicle_state.ignition === ignitionOn)
+    }
+
+    // Report period filter (group by period)
+    if (reportPeriod !== "daily") {
+      // This could be used to group results by week/month
+      // For now, we'll just apply the filter as-is
+      // You could implement grouping logic here if needed
+    }
+
+    console.log("🔍 Applied filters:", {
+      original: tableEvents.length,
+      filtered: filtered.length,
+      filters: {
+        startDate,
+        endDate,
+        eventTypeFilter,
+        selectedVehicleFilter,
+        minFillLiters,
+        minTheftLiters,
+        maxSpeed,
+        ignitionFilter,
+        reportPeriod,
+      },
+    })
+
+    setFilteredEvents(filtered)
+
+    // Update select all state
+    setSelectAll(false)
+    setSelectedRecords(new Set())
+
+    // Show filter results
+    toast({
+      title: "Filters Applied",
+      description: `Showing ${filtered.length} of ${tableEvents.length} events`,
+    })
+  }, [
+    tableEvents,
+    startDate,
+    endDate,
+    eventTypeFilter,
+    selectedVehicleFilter,
+    minFillLiters,
+    minTheftLiters,
+    maxSpeed,
+    ignitionFilter,
+    reportPeriod,
+    toast,
+  ])
+
+  // Auto-apply filters when eventTypeFilter changes
+  useEffect(() => {
+    handleFilter()
+  }, [handleFilter])
+
   // Generate fuel level data for the selected vehicle filter
   useEffect(() => {
     console.log("📈 Generating fuel level data from", allEvents.length, "events")
@@ -963,7 +1086,15 @@ useEffect(() => {
 
     console.log("📈 Generated", dataPoints.length, "chart data points")
     setFuelLevelData(dataPoints)
-  }, [allEvents, selectedVehicleFilter, chartTimePeriod])
+  }, [allEvents, selectedVehicleFilter, chartTimePeriod, toast])
+
+  interface TooltipProps {
+    active?: boolean
+    payload?: Array<{
+      payload: FuelLevelDataPoint
+      value: number
+    }>
+  }
 
   // Checkbox selection functions
   const handleSelectRecord = (recordId: string) => {
@@ -1119,8 +1250,14 @@ useEffect(() => {
     }
   }
 
+  interface DotProps {
+    cx?: number
+    cy?: number
+    payload?: FuelLevelDataPoint
+  }
+
   // Custom tooltip for the chart
-  const CustomTooltip = ({ active, payload }: any) => {
+  const CustomTooltip = ({ active, payload }: TooltipProps) => {
     if (active && payload && payload.length) {
       const data = payload[0].payload
 
@@ -1190,7 +1327,7 @@ useEffect(() => {
   }
 
   // Custom dot for the chart
-  const CustomizedDot = (props: any) => {
+  const CustomizedDot = (props: DotProps) => {
     const { cx, cy, payload } = props
 
     if (!payload.event) {
@@ -1200,26 +1337,24 @@ useEffect(() => {
     return <circle cx={cx} cy={cy} r={8} stroke={getEventColor(payload.event.type)} strokeWidth={3} fill="white" />
   }
 
-  // Filters
-  const handleFilter = () => {
-    let filtered = tableEvents
-
-    // Date filter
-    if (startDate) filtered = filtered.filter((e) => new Date(e.timestamp) >= new Date(startDate))
-    if (endDate) filtered = filtered.filter((e) => new Date(e.timestamp) <= new Date(endDate))
-
-    // Event type filter
-    if (eventTypeFilter !== "all") filtered = filtered.filter((e) => e.event_type === eventTypeFilter)
-
-    setFilteredEvents(filtered)
-  }
-
   const clearFilters = () => {
     setStartDate("")
     setEndDate("")
     setEventTypeFilter("all")
+    setSelectedVehicleFilter("all")
+    setMinFillLiters("")
+    setMinTheftLiters("")
+    setMaxSpeed("")
+    setIgnitionFilter("all")
     setReportPeriod("daily")
     setFilteredEvents(tableEvents)
+    setSelectAll(false)
+    setSelectedRecords(new Set())
+
+    toast({
+      title: "Filters Cleared",
+      description: "All filters have been reset",
+    })
   }
 
   // Calculate theft and fill event counts
@@ -1260,8 +1395,6 @@ useEffect(() => {
               <p className="text-muted-foreground text-sm sm:text-base">
                 Monitor and detect suspicious fuel activities across your fleet
               </p>
-              {/* Debug info */}
-             
             </div>
           </div>
 
@@ -1454,7 +1587,7 @@ useEffect(() => {
               <CardTitle>Advanced Filters</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-4">
                 <div>
                   <Label htmlFor="vehicle-filter" className="text-sm">
                     Filter by Vehicle
@@ -1496,24 +1629,6 @@ useEffect(() => {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="report-period" className="text-sm">
-                    Period
-                  </Label>
-                  <Select
-                    value={reportPeriod}
-                    onValueChange={(v: "daily" | "weekly" | "monthly") => setReportPeriod(v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">Daily</SelectItem>
-                      <SelectItem value="weekly">Weekly</SelectItem>
-                      <SelectItem value="monthly">Monthly</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
                   <Label htmlFor="event-type" className="text-sm">
                     Event Type
                   </Label>
@@ -1528,12 +1643,12 @@ useEffect(() => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-2 items-end">
+                <div className="flex flex-col sm:flex-row gap-2 items-end xl:col-span-3">
                   <Button onClick={handleFilter} size="sm" className="w-full sm:w-auto">
                     Apply Filters
                   </Button>
                   <Button variant="outline" onClick={clearFilters} size="sm" className="w-full sm:w-auto">
-                    Clear
+                    Clear All
                   </Button>
                 </div>
               </div>
@@ -1556,7 +1671,6 @@ useEffect(() => {
                         (Loading table data...)
                       </span>
                     )}
-                 
                   </CardTitle>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">
@@ -1690,7 +1804,15 @@ useEffect(() => {
                                   </div>
                                   <div>
                                     <Label className="text-sm font-medium">Event Type</Label>
-                                    <Badge variant={getSeverityBadge(selectedEvent.event_type) as any}>
+                                    <Badge
+                                      variant={
+                                        getSeverityBadge(selectedEvent.event_type) as
+                                          | "default"
+                                          | "destructive"
+                                          | "outline"
+                                          | "secondary"
+                                      }
+                                    >
                                       {selectedEvent.event_type
                                         .replace("_", " ")
                                         .replace(/\b\w/g, (l) => l.toUpperCase())}
@@ -1747,7 +1869,5 @@ useEffect(() => {
     </SidebarProvider>
   )
 }
-
-
 
 export default FuelTheft

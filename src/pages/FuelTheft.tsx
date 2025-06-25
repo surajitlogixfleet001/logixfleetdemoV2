@@ -467,7 +467,7 @@ const FuelTheft = () => {
   const [selectedEvent, setSelectedEvent] = useState<FuelEvent | null>(null)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-const [eventTypeFilter, setEventTypeFilter] = useState<"fill" | "theft" | null>(null)
+const [eventTypeFilter, setEventTypeFilter] = useState("all"); // default to "all"
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState("all")
   const [loading, setLoading] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
@@ -1261,10 +1261,7 @@ useEffect(() => {
                 Monitor and detect suspicious fuel activities across your fleet
               </p>
               {/* Debug info */}
-              <p className="text-xs text-muted-foreground mt-1">
-                {isUsingDemoData ? "📊 Demo Data Mode" : "🔗 Live Data Mode"} - {allEvents.length} chart events,{" "}
-                {tableEvents.length} table events, {vehicles.length} vehicles
-              </p>
+             
             </div>
           </div>
 
@@ -1336,7 +1333,6 @@ useEffect(() => {
                   <span className="text-sm font-normal text-muted-foreground ml-2">
                     ({chartTimePeriod === "day" ? "Last 24 hours" : "Last 7 days"})
                   </span>
-                  {chartLoading && <span className="text-xs text-orange-600 ml-2">(Loading chart data...)</span>}
                 </CardTitle>
               </div>
               <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
@@ -1560,9 +1556,7 @@ useEffect(() => {
                         (Loading table data...)
                       </span>
                     )}
-                    {isUsingDemoData && (
-                      <span className="text-sm font-normal text-blue-600 block sm:inline sm:ml-2">(Demo Data)</span>
-                    )}
+                 
                   </CardTitle>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-2">

@@ -467,7 +467,7 @@ const FuelTheft = () => {
   const [selectedEvent, setSelectedEvent] = useState<FuelEvent | null>(null)
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
-  const [eventTypeFilter, setEventTypeFilter] = useState("all")
+const [eventTypeFilter, setEventTypeFilter] = useState<"fill" | "theft" | null>(null)
   const [selectedVehicleFilter, setSelectedVehicleFilter] = useState("all")
   const [loading, setLoading] = useState(false)
   const [tableLoading, setTableLoading] = useState(false)
@@ -720,6 +720,31 @@ const FuelTheft = () => {
     loadRealData()
   }, [])
 
+  // Handle URL parameters for filtering and scrolling
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const filterParam = urlParams.get("filter")
+    const scrollToParam = urlParams.get("scrollTo")
+
+    // Apply filter if specified
+    if (filterParam === "fill") {
+      setEventTypeFilter("fill")
+    } else if (filterParam === "theft") {
+      setEventTypeFilter("theft")
+    }
+
+    // Scroll to section if specified
+    if (scrollToParam === "table") {
+      // Wait for component to render then scroll
+      setTimeout(() => {
+        const tableElement = document.querySelector("[data-table-section]")
+        if (tableElement) {
+          tableElement.scrollIntoView({ behavior: "smooth", block: "start" })
+        }
+      }, 1000)
+    }
+  }, [])
+
   // When vehicle filter changes, reload data
   useEffect(() => {
     if (!loading && vehicles.length > 0 && !isUsingDemoData) {
@@ -728,7 +753,10 @@ const FuelTheft = () => {
       fetchTableData(1) // Reset to page 1 when vehicle changes
     }
   }, [selectedVehicleFilter])
-
+// Auto-apply filters when eventTypeFilter changes
+useEffect(() => {
+  handleFilter()
+}, [eventTypeFilter, startDate, endDate, tableEvents])
   // Generate fuel level data for the selected vehicle filter
   useEffect(() => {
     console.log("📈 Generating fuel level data from", allEvents.length, "events")
@@ -1422,7 +1450,6 @@ const FuelTheft = () => {
                 </ResponsiveContainer>
               </ChartContainer>
             </CardContent>
-            
           </Card>
 
           {/* Filters */}
@@ -1518,7 +1545,7 @@ const FuelTheft = () => {
           </Card>
 
           {/* Events Table */}
-          <Card>
+          <Card data-table-section>
             <CardHeader>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
@@ -1726,5 +1753,7 @@ const FuelTheft = () => {
     </SidebarProvider>
   )
 }
+
+
 
 export default FuelTheft

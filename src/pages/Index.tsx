@@ -4,10 +4,9 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
-import { Search, Bell, Settings, Grid3X3, HelpCircle, X, TrendingUp,Truck,Tag,Save,  Calendar, CalendarDays, CalendarClock, TrendingDown, Info } from "lucide-react"
-import { Input } from "@/components/ui/input"
+import { Bell, Settings, Calendar, CalendarDays, CalendarClock } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
-import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart,Label, Line } from "recharts"
+import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Label, Line } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { InfoTooltip } from "@/components/InfoTooltip"
 
@@ -41,10 +40,10 @@ const Index = () => {
 
   useEffect(() => {
     setTimeout(() => {
-      const stored = localStorage.getItem('userFname');
-        if (stored) {
-          setEmail(stored);
-        }
+      const stored = localStorage.getItem("userFname")
+      if (stored) {
+        setEmail(stored)
+      }
       setLoading(false)
     }, 1000)
   }, [])
@@ -91,17 +90,16 @@ const Index = () => {
                 <div className="flex items-center gap-2 md:gap-4">
                   <SidebarTrigger />
                   <h1 className="text-xl md:text-4xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                    Welcome {email
+                    Welcome{" "}
+                    {email
                       .split(" ")
-                      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                       .join(" ")}
                   </h1>
                 </div>
-                
+
                 {/* Search and Actions */}
                 <div className="flex items-center gap-2 md:gap-4">
-                 
-                  
                   <div className="flex items-center gap-2 md:gap-3">
                     <div className="relative">
                       <button
@@ -164,9 +162,7 @@ const Index = () => {
                 <div className="xl:col-span-2">
                   <Card className="h-[400px] md:h-[500px] border-0 shadow-sm">
                     <CardHeader className="pb-4">
-                      <CardTitle className="text-base font-bold text-foreground">
-                        Refill and Theft Graph
-                      </CardTitle>
+                      <CardTitle className="text-base font-bold text-foreground">Refill and Theft Graph</CardTitle>
                     </CardHeader>
                     <CardContent className="h-[320px] md:h-[420px]">
                       <ChartContainer
@@ -200,11 +196,7 @@ const Index = () => {
                             </XAxis>
 
                             {/* Y-Axis: visible line/ticks + main label + original Refill/Theft labels */}
-                            <YAxis
-                              axisLine={true}
-                              tickLine={true}
-                              tick={{ fontSize: 12, fill: "#334155" }}
-                            >
+                            <YAxis axisLine={true} tickLine={true} tick={{ fontSize: 12, fill: "#334155" }}>
                               {/* Main descriptive label */}
                               <Label
                                 value="Volume (Liters)"
@@ -239,10 +231,9 @@ const Index = () => {
                             />
 
                             <Bar dataKey="refill" fill="#fbbf24" radius={[2, 2, 0, 0]} />
-                            <Bar dataKey="theft"  fill="#ef4444" radius={[2, 2, 0, 0]} />
+                            <Bar dataKey="theft" fill="#ef4444" radius={[2, 2, 0, 0]} />
                           </ComposedChart>
                         </ResponsiveContainer>
-
                       </ChartContainer>
                     </CardContent>
                   </Card>
@@ -250,7 +241,7 @@ const Index = () => {
 
                 {/* ROI Section */}
                 <div className="space-y-4 md:space-y-6">
-      <Card className="border border-gray-400 shadow-lg rounded-2xl bg-white hover:shadow-lg transition-shadow">
+      <Card className="border border-gray-300 ring-1 ring-gray-200 shadow-lg rounded-2xl bg-white hover:shadow-xl transition-shadow">
         <CardHeader className="pb-4 md:pb-6 border-b border-gray-100">
           <div className="text-center pt-4">
             <h2 className="text-xl md:text-2xl font-bold text-gray-800">
@@ -261,7 +252,7 @@ const Index = () => {
 
         <CardContent className="py-6 px-4 md:px-6 space-y-4">
           {/* Year-to-Date Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-green-50 border border-green-200">
+          <div className="flex items-center p-4 rounded-lg bg-green-50 border border-green-200 shadow-sm">
             <Calendar className="h-6 w-6 text-green-600 mr-3" />
             <div>
               <div className="text-sm font-medium text-green-800">
@@ -274,7 +265,7 @@ const Index = () => {
           </div>
 
           {/* Quarterly Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <div className="flex items-center p-4 rounded-lg bg-blue-50 border border-blue-200 shadow-sm">
             <CalendarDays className="h-6 w-6 text-blue-600 mr-3" />
             <div>
               <div className="text-sm font-medium text-blue-800">
@@ -287,7 +278,7 @@ const Index = () => {
           </div>
 
           {/* Monthly Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-orange-50 border border-orange-200">
+          <div className="flex items-center p-4 rounded-lg bg-orange-50 border border-orange-200 shadow-sm">
             <CalendarClock className="h-6 w-6 text-orange-600 mr-3" />
             <div>
               <div className="text-sm font-medium text-orange-800">
@@ -356,11 +347,11 @@ const Index = () => {
 
                     <div className="pt-2 border-t border-muted">
                       <a
-                        href="/dashboard/fuel-theft"
+                        href="/dashboard/fuel-events?filter=theft&scrollTo=table"
                         className="text-sm text-blue-600 hover:text-blue-700 font-normal"
                       >
                         View more
-                      </a>                      
+                      </a>
                       <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
@@ -410,11 +401,11 @@ const Index = () => {
 
                     <div className="pt-2 border-t border-muted">
                       <a
-                        href="/dashboard/fuel-report"
+                        href="/dashboard/fuel-events?filter=fill&scrollTo=table"
                         className="text-sm text-blue-600 hover:text-blue-700 font-normal"
                       >
                         View more
-                      </a>                        
+                      </a>
                       <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
@@ -463,7 +454,6 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-                                            
                       <div className="text-xs text-muted-foreground mt-1">Updated 3:09 PM</div>
                     </div>
                   </CardContent>
@@ -531,9 +521,7 @@ const Index = () => {
                     <div className="flex items-center gap-2">
                       <CardTitle className="text-base font-bold text-foreground">New vehicles added</CardTitle>
                       <InfoTooltip content="Number of new vehicles added to your fleet monitoring system. Track fleet expansion and ensure all new vehicles are properly configured with fuel monitoring sensors and tracking systems." />
-                      <Badge variant="secondary" className="text-xs ml-auto">
-                      
-                      </Badge>
+                      <Badge variant="secondary" className="text-xs ml-auto"></Badge>
                     </div>
                   </CardHeader>
                   <CardContent className="space-y-4">
@@ -566,12 +554,9 @@ const Index = () => {
                     </div>
 
                     <div className="pt-2 border-t border-muted">
-                      <a
-                        href="/dashboard/vehicles"
-                        className="text-sm text-blue-600 hover:text-blue-700 font-normal"
-                      >
+                      <a href="/dashboard/vehicles" className="text-sm text-blue-600 hover:text-blue-700 font-normal">
                         View more
-                      </a>                        
+                      </a>
                       <div className="text-xs text-muted-foreground mt-1">Updated 3:42 PM</div>
                     </div>
                   </CardContent>

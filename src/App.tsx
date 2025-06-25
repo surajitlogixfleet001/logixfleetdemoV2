@@ -49,7 +49,7 @@ const App = () => (
             } 
           />
           <Route 
-            path="/dashboard/fuel-theft" 
+            path="/dashboard/fuel-events" 
             element={
               <ProtectedRoute>
                 <FuelTheft />

@@ -47,7 +47,7 @@ const navigationItems = [
   {
     title: "Fuel Analysis",
     icon: ShieldAlert,
-    url: "/dashboard/fuel-theft",
+    url: "/dashboard/fuel-events",
   },
 ]
 

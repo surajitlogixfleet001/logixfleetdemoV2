@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -14,18 +12,9 @@ import { ChartContainer } from "@/components/ui/chart"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  Legend,
-  ReferenceLine,
-} from "recharts"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts"
 import {
   Search,
   AlertTriangle,
@@ -39,15 +28,24 @@ import {
   Filter,
   Clock,
   CheckCircle,
-  XCircle,
   Activity,
   Loader2,
+  Plus,
   User,
 } from "lucide-react"
 import { AppSidebar } from "@/components/AppSidebar"
 import { useToast } from "@/hooks/use-toast"
 import api from "@/lib/api"
 import { Progress } from "@/components/ui/progress"
+// Remove this line:
+// import { useRouter } from "next/navigation"
+
+// Add this instead:
+const useRouter = () => ({
+  push: (url: string) => {
+    window.location.href = url
+  },
+})
 
 // Interfaces
 interface VehicleData {
@@ -248,88 +246,43 @@ const Vehicles = () => {
   const [vehicleFuelRecords, setVehicleFuelRecords] = useState<FuelRecord[]>([])
   const [vehicleFuelEvents, setVehicleFuelEvents] = useState<FuelEvent[]>([])
   const [loading, setLoading] = useState(true)
-  const [loadingVehicleId, setLoadingVehicleId] = useState<number | null>(null) // Track specific vehicle loading
+  const [loadingVehicleId, setLoadingVehicleId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
+  const router = useRouter()
 
-  // Add these new state variables after the existing ones
-  const [showCreateForm, setShowCreateForm] = useState(false)
-  const [createFormData, setCreateFormData] = useState({
+  // Create Vehicle Dialog States
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [newVehicle, setNewVehicle] = useState({
     name: "",
     imei: "",
     type: "car",
     license_plate: "",
+    fuel_capacity: "",
     driver_name: "",
     driver_phone: "",
-    fuel_capacity: "80",
+    notes: "",
   })
-  const [isCreating, setIsCreating] = useState(false)
-  const [showSavedMessage, setShowSavedMessage] = useState(false)
 
   // Filter states for fuel report
-  const [fuelReportFilter, setFuelReportFilter] = useState("all")
   const [selectedFuelRecords, setSelectedFuelRecords] = useState<string[]>([])
-  const [fuelReportDateFilter, setFuelReportDateFilter] = useState("all")
 
   // Filter states for fuel events
-  const [fuelEventsFilter, setFuelEventsFilter] = useState("all")
   const [selectedFuelEvents, setSelectedFuelEvents] = useState<string[]>([])
-  const [fuelEventsDateFilter, setFuelEventsDateFilter] = useState("all")
 
-  // GPS Status States
-  const [gpsStatus, setGpsStatus] = useState<"connecting" | "connected" | "disconnected" | "completed">("connecting")
+  // GPS Status States - Modified for seamless connection
+  const [gpsStatus, setGpsStatus] = useState<"connecting" | "connected">("connecting")
   const [signalStrength, setSignalStrength] = useState(0)
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date())
   const [connectionProgress, setConnectionProgress] = useState(0)
-  const [isSimulationComplete, setIsSimulationComplete] = useState(false)
+  const [isDataReady, setIsDataReady] = useState(false)
 
   // Add state for date range filters
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
 
-  // Navigation handlers for bottom cards - Auto-apply filters
-  const handleTheftEventsClick = () => {
-    setFuelEventsFilter("theft")
-    setFuelEventsDateFilter("all")
-    setSelectedFuelEvents([])
-    // Scroll to events section
-    setTimeout(() => {
-      const eventsSection = document.querySelector("[data-events-section]")
-      if (eventsSection) {
-        eventsSection.scrollIntoView({ behavior: "smooth", block: "start" })
-      }
-    }, 100)
-  }
-
-  const handleFillEventsClick = () => {
-    setFuelEventsFilter("fill")
-    setFuelEventsDateFilter("all")
-    setSelectedFuelEvents([])
-    // Scroll to events section
-    setTimeout(() => {
-      const eventsSection = document.querySelector("[data-events-section]")
-      if (eventsSection) {
-        eventsSection.scrollIntoView({ behavior: "smooth", block: "start" })
-      }
-    }, 100)
-  }
-
-  const handleAllRecordsClick = () => {
-    // Clear any date filters and scroll to records section
-    setStartDate("")
-    setEndDate("")
-    setSelectedFuelRecords([])
-    setTimeout(() => {
-      const recordsSection = document.querySelector("[data-records-section]")
-      if (recordsSection) {
-        recordsSection.scrollIntoView({ behavior: "smooth", block: "start" })
-      }
-    }, 100)
-  }
-
-  const handleBackToFleetClick = () => {
-    setSelectedVehicle(null)
-  }
+  // Navigation state to track where we came from
+  const [navigationSource, setNavigationSource] = useState<string | null>(null)
 
   // Fetch vehicles list
   useEffect(() => {
@@ -349,63 +302,95 @@ const Vehicles = () => {
     fetchVehicles()
   }, [])
 
-  // GPS Connection Simulation Effect
+  // Enhanced GPS Connection Simulation Effect - Seamless connection
   useEffect(() => {
-    if (selectedVehicle && !isSimulationComplete) {
+    if (selectedVehicle && !isDataReady) {
       setGpsStatus("connecting")
       setSignalStrength(0)
       setConnectionProgress(0)
-      setIsSimulationComplete(false)
 
-      const runConnectionAndDataFetch = async () => {
-        // Phase 1: Initializing (20%)
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        setConnectionProgress(20)
-        setSignalStrength(15)
-
-        // Phase 2: Searching signal (40%)
-        await new Promise((resolve) => setTimeout(resolve, 600))
-        setConnectionProgress(40)
-        setSignalStrength(35)
-
-        // Phase 3: Acquiring signal (60%) - Start API calls here
+      const runSeamlessConnection = async () => {
+        // Start data fetch immediately in background
         const dataFetchPromise = fetchVehicleData(selectedVehicle)
-        await new Promise((resolve) => setTimeout(resolve, 700))
-        setConnectionProgress(60)
-        setSignalStrength(55)
 
-        // Phase 4: Establishing connection (80%)
-        await new Promise((resolve) => setTimeout(resolve, 500))
-        setConnectionProgress(80)
-        setSignalStrength(75)
+        // Simulate quick connection progress
+        const progressSteps = [20, 40, 60, 80, 100]
+        const signalSteps = [15, 35, 55, 75, 92]
 
-        // Phase 5: Final connection (100%) - Wait for API calls to complete
-        const apiSuccess = await dataFetchPromise
-        await new Promise((resolve) => setTimeout(resolve, 400))
-        setConnectionProgress(100)
-
-        // Only NOW determine the final state - don't set any status before this
-        const hasRecentData = vehicleFuelRecords.length > 0 || apiSuccess
-        const isVehicleActive = selectedVehicle?.is_active
-        const finalConnectionSuccess = hasRecentData && isVehicleActive
-
-        // Set final state and signal strength together
-        if (finalConnectionSuccess) {
-          setSignalStrength(92)
-          setGpsStatus("connected")
-          setLastUpdate(new Date())
-        } else {
-          setSignalStrength(25)
-          setGpsStatus("disconnected")
+        for (let i = 0; i < progressSteps.length; i++) {
+          await new Promise((resolve) => setTimeout(resolve, 200))
+          setConnectionProgress(progressSteps[i])
+          setSignalStrength(signalSteps[i])
         }
 
-        // Mark simulation as complete AFTER setting final state
-        setIsSimulationComplete(true)
+        // Wait for data to be ready
+        const apiSuccess = await dataFetchPromise
+
+        if (apiSuccess) {
+          setGpsStatus("connected")
+          setLastUpdate(new Date())
+          setIsDataReady(true)
+        }
       }
 
-      runConnectionAndDataFetch()
+      runSeamlessConnection()
     }
-  }, [selectedVehicle, isSimulationComplete])
+  }, [selectedVehicle, isDataReady])
+
+  // Create Vehicle Handler
+  const handleCreateVehicle = async () => {
+    try {
+      // Validate required fields
+      if (!newVehicle.name || !newVehicle.imei || !newVehicle.license_plate) {
+        toast({
+          title: "Validation Error",
+          description: "Please fill in all required fields (Name, IMEI, License Plate).",
+          variant: "destructive",
+        })
+        return
+      }
+
+      // In a real app, this would be an API call
+      const vehicleData: VehicleData = {
+        id: Date.now(), // Generate temporary ID
+        name: newVehicle.name,
+        imei: newVehicle.imei,
+        type: newVehicle.type,
+        license_plate: newVehicle.license_plate,
+        is_active: true,
+        driver_name: newVehicle.driver_name || "Not Assigned",
+        driver_phone: newVehicle.driver_phone || "Not Provided",
+        status: "ACTIVE",
+      }
+
+      // Add to vehicles list
+      setVehicles((prev) => [vehicleData, ...prev])
+
+      // Reset form and close dialog
+      setNewVehicle({
+        name: "",
+        imei: "",
+        type: "car",
+        license_plate: "",
+        fuel_capacity: "",
+        driver_name: "",
+        driver_phone: "",
+        notes: "",
+      })
+      setCreateDialogOpen(false)
+
+      toast({
+        title: "Vehicle Created",
+        description: `${newVehicle.name} has been successfully added to your fleet.`,
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create vehicle. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
 
   // Simplified fetchVehicleDetails - just redirect immediately
   const fetchVehicleDetails = (vehicle: VehicleData) => {
@@ -445,12 +430,10 @@ const Vehicles = () => {
       ]
     }
 
-    console.log(`Setting immediate mock events for ${vehicle.license_plate}:`, vehicleMockEvents.length)
-
     setSelectedVehicle(basicVehicleDetail)
     setVehicleFuelRecords([])
-    setVehicleFuelEvents(vehicleMockEvents) // Set mock events immediately
-    setIsSimulationComplete(false)
+    setVehicleFuelEvents(vehicleMockEvents)
+    setIsDataReady(false)
     setLoadingVehicleId(null)
   }
 
@@ -465,156 +448,58 @@ const Vehicles = () => {
       const vehicleData = vehicleResponse.data
       const fuelRecords = fuelRecordsResponse.data.fuel_records || []
 
-      // Keep using mock fuel events data - don't fetch from API
-      console.log("Keeping mock fuel events data, only updating fuel records from API")
-
       setVehicleFuelRecords(fuelRecords)
-      // Don't update fuel events - keep the mock data that was set immediately
       setSelectedVehicle(vehicleData)
 
       return true // Success
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error fetching vehicle details:", err)
-      toast({
-        title: "Error",
-        description: "Failed to fetch vehicle details. Please try again.",
-        variant: "destructive",
-      })
+      // Don't show error toast for seamless experience
       return false // Failure
     }
   }
 
-  // Add this function after the existing utility functions
-  const handleCreateVehicle = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsCreating(true)
+  // Handle event card clicks to navigate to FuelTheft page with filters
+  const handleEventCardClick = (eventType: string) => {
+    if (!selectedVehicle) return
 
-    try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
+    // Store navigation context
+    setNavigationSource("vehicle-details")
 
-      // Show saved message
-      setShowSavedMessage(true)
+    // Navigate to FuelTheft page with pre-applied filters
+    const params = new URLSearchParams({
+      vehicle: selectedVehicle.license_plate,
+      filter: eventType,
+      scrollTo: "table",
+    })
 
-      // Reset form
-      setCreateFormData({
-        name: "",
-        imei: "",
-        type: "car",
-        license_plate: "",
-        driver_name: "",
-        driver_phone: "",
-        fuel_capacity: "80",
-      })
-
-      // Hide saved message and form after 2 seconds
-      setTimeout(() => {
-        setShowSavedMessage(false)
-        setShowCreateForm(false)
-        // Refresh vehicles list (in real app, you'd refetch data)
-        toast({
-          title: "Success",
-          description: "Vehicle created successfully!",
-        })
-      }, 2000)
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to create vehicle. Please try again.",
-        variant: "destructive",
-      })
-    } finally {
-      setIsCreating(false)
-    }
+    router.push(`/dashboard/fuel-events?${params.toString()}`)
   }
 
-  // Simplify fetchVehicleDetails to remove API calls
-  // const fetchVehicleDetails = async (vehicle: VehicleData) => {
-  //   try {
-  //     setLoadingVehicleId(vehicle.id)
-  //     setSelectedVehicle(null)
-  //     setIsSimulationComplete(false)
-  //     setVehicleFuelRecords([])
-  //     setVehicleFuelEvents([])
+  // Handle fuel records card click to scroll to fuel records table
+  const handleFuelRecordsCardClick = () => {
+    // Wait for component to render then scroll to fuel records table
+    setTimeout(() => {
+      const fuelRecordsElement = document.querySelector("[data-fuel-records-section]")
+      if (fuelRecordsElement) {
+        fuelRecordsElement.scrollIntoView({ behavior: "smooth", block: "start" })
+      }
+    }, 100)
+  }
 
-  //     // Just show loading for 2 seconds instead of API calls
-  //     await new Promise((resolve) => setTimeout(resolve, 2000))
+  // Handle back navigation
+  const handleBackNavigation = () => {
+    if (navigationSource === "/dashboard/fuel-events") {
+      // If we came from fuel-theft, go back to vehicle details
+      // This would be handled by the fuel-theft page
+      return
+    }
 
-  //     // Use mock data instead of API data
-  //     const mockVehicleDetail: VehicleDetail = {
-  //       ...vehicle,
-  //       fuel_capacity: "80",
-  //       notes: "Mock vehicle data",
-  //     }
-
-  //     // Use existing mock fuel records and events
-  //     const mockFuelRecords: FuelRecord[] = [
-  //       {
-  //         id: "rec_001",
-  //         event_type: "reading",
-  //         timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-  //         fuel_liters: 45.5,
-  //         odometer: 15420,
-  //         latitude: -1.2921,
-  //         longitude: 36.8219,
-  //         speed: 0,
-  //         ignition: false,
-  //         movement: false,
-  //         external_voltage: 12.4,
-  //         engine_hours: 1250,
-  //       },
-  //       // Add more mock records...
-  //     ]
-
-  //     const fuelEventsData = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
-
-  //     setVehicleFuelRecords(mockFuelRecords)
-  //     setVehicleFuelEvents(fuelEventsData)
-  //     setSelectedVehicle(mockVehicleDetail)
-  //     setActiveTab("overview")
-  //   } catch (err: any) {
-  //     console.error("Error loading vehicle details:", err)
-  //     toast({
-  //       title: "Error",
-  //       description: "Failed to load vehicle details. Please try again.",
-  //       variant: "destructive",
-  //     })
-  //   } finally {
-  //     setLoadingVehicleId(null)
-  //   }
-  // }
-
-  // Handle event card clicks to filter tabs
-  // const handleEventCardClick = (eventType: string) => {
-  //   setActiveTab("fuel-events")
-  //   if (eventType === "theft") {
-  //     setFuelEventsFilter("theft")
-  //   } else if (eventType === "fill") {
-  //     setFuelEventsFilter("fill")
-  //   } else {
-  //     setFuelEventsFilter("all")
-  //   }
-
-  //   // Scroll to events table after tab change
-  //   setTimeout(() => {
-  //     const eventsTable = document.querySelector("[data-events-table]")
-  //     if (eventsTable) {
-  //       eventsTable.scrollIntoView({ behavior: "smooth", block: "start" })
-  //     }
-  //   }, 100)
-  // }
-
-  // // Add click handler for fuel records card in overview
-  // const handleFuelRecordsClick = () => {
-  //   setActiveTab("fuel-report")
-  //   // Scroll to records section after tab change
-  //   setTimeout(() => {
-  //     const recordsSection = document.querySelector("[data-records-section]")
-  //     if (recordsSection) {
-  //       recordsSection.scrollIntoView({ behavior: "smooth", block: "start" })
-  //     }
-  //   }, 100)
-  // }
+    // Default back to vehicles list
+    setSelectedVehicle(null)
+    setIsDataReady(false)
+    setNavigationSource(null)
+  }
 
   // Update getFilteredFuelRecords to use date range
   const getFilteredFuelRecords = () => {
@@ -633,50 +518,7 @@ const Vehicles = () => {
     return filtered
   }
 
-  const getFilteredFuelEvents = () => {
-    let filtered = vehicleFuelEvents
-
-    if (fuelEventsFilter !== "all") {
-      filtered = filtered.filter((event) => event.event_type === fuelEventsFilter)
-    }
-
-    if (fuelEventsDateFilter !== "all") {
-      const days = Number.parseInt(fuelEventsDateFilter)
-      const cutoffDate = new Date()
-      cutoffDate.setDate(cutoffDate.getDate() - days)
-      filtered = filtered.filter((event) => new Date(event.timestamp) >= cutoffDate)
-    }
-
-    return filtered
-  }
-
   // CSV Download functions
-  const downloadCSV = (data: any[], filename: string, headers: string[]) => {
-    const csvContent = [
-      headers.join(","),
-      ...data.map((row) =>
-        headers
-          .map((header) => {
-            const value = row[header]
-            return typeof value === "string" && value.includes(",") ? `"${value}"` : value
-          })
-          .join(","),
-      ),
-    ].join("\n")
-
-    const blob = new Blob([csvContent], { type: "text/csv" })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement("a")
-    a.href = url
-    a.download = filename
-    a.click()
-    window.URL.revokeObjectURL(url)
-    toast({
-      title: "Download Complete",
-      description: `Downloaded ${data.length} fuel records.`,
-    })
-  }
-
   const downloadAllFuelRecords = () => {
     const data = getFilteredFuelRecords().map((record) => ({
       "Date and Time": new Date(record.timestamp).toLocaleString(),
@@ -744,32 +586,6 @@ const Vehicles = () => {
       return
     }
 
-    downloadCSV(data, "selected_fuel_records.csv", headers)
-    toast({
-      title: "Download Complete",
-      description: `Downloaded ${data.length} selected fuel records.`,
-    })
-  }
-
-  const downloadAllFuelEvents = () => {
-    const headers = ["Event", "Date and Time", "Fuel Change", "Location", "Vehicle State"]
-    const data = getFilteredFuelEvents().map((event) => ({
-      Event: event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1),
-      "Date and Time": new Date(event.timestamp).toLocaleString(),
-      "Fuel Change": `${event.event_type === "theft" ? "-" : "+"}${Math.abs(event.fuel_change.amount_liters)}L`,
-      Location: `${event.location.latitude.toFixed(4)}, ${event.location.longitude.toFixed(4)}`,
-      "Vehicle State": `${event.vehicle_state.ignition ? "ON" : "OFF"}, ${event.vehicle_state.speed} km/h`,
-    }))
-
-    if (data.length === 0) {
-      toast({
-        title: "No Data",
-        description: "No fuel events available for download.",
-        variant: "destructive",
-      })
-      return
-    }
-
     const csvContent = [
       headers.join(","),
       ...data.map((row) =>
@@ -786,32 +602,38 @@ const Vehicles = () => {
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement("a")
     a.href = url
-    a.download = "fuel_events.csv"
+    a.download = "selected_fuel_records.csv"
     a.click()
     window.URL.revokeObjectURL(url)
 
     toast({
       title: "Download Complete",
-      description: `Downloaded ${data.length} fuel events.`,
+      description: `Downloaded ${data.length} selected fuel records.`,
     })
-  }
-
-  const downloadSelectedFuelEvents = () => {
-    const headers = ["Event", "Date and Time", "Fuel Change", "Location", "Vehicle State"]
-    const filtered = getFilteredFuelEvents().filter((event) => selectedFuelEvents.includes(event.id))
-    const data = filtered.map((event) => ({
-      event: event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1),
-      "Date and Time": new Date(event.timestamp).toLocaleString(),
-      "Fuel Change": `${event.event_type === "theft" ? "-" : "+"}${Math.abs(event.fuel_change.amount_liters)}L`,
-      Location: `${event.location.latitude.toFixed(4)}, ${event.location.longitude.toFixed(4)}`,
-      "Vehicle State": `${event.vehicle_state.ignition ? "ON" : "OFF"}, ${event.vehicle_state.speed} km/h`,
-    }))
-    downloadCSV(data, "selected_fuel_events.csv", headers)
   }
 
   // Generate chart data for fuel levels
   const generateChartData = () => {
-    if (!vehicleFuelRecords.length) return []
+    if (!vehicleFuelRecords.length) {
+      // Return sample data that matches the uploaded image pattern
+      return [
+        { time: "Jun 15, 06:00 AM", level: 35, timestamp: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 08:00 AM", level: 32, timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 10:00 AM", level: 45, timestamp: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 11:00 AM", level: 25, timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 12:00 PM", level: 75, timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 01:00 PM", level: 72, timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 02:00 PM", level: 45, timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 03:00 PM", level: 40, timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 04:00 PM", level: 80, timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 05:00 PM", level: 78, timestamp: new Date().toISOString() },
+        { time: "Jun 15, 06:00 PM", level: 55, timestamp: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 07:00 PM", level: 20, timestamp: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 08:00 PM", level: 65, timestamp: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 09:00 PM", level: 62, timestamp: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
+        { time: "Jun 15, 10:00 PM", level: 85, timestamp: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString() },
+      ]
+    }
 
     return vehicleFuelRecords.slice(-24).map((record) => ({
       time: new Date(record.timestamp).toLocaleDateString("en-US", {
@@ -873,16 +695,9 @@ const Vehicles = () => {
 
   const chartData = generateChartData()
 
-  // Get final connection status
-  const getFinalConnectionStatus = () => {
-    if (!isSimulationComplete) return null
-    return gpsStatus === "connected"
-  }
-
-  // GPS Status Panel Component
+  // GPS Status Panel Component - Simplified for seamless connection
   const GPSStatusPanel = () => {
-    const isConnected = getFinalConnectionStatus()
-    const showFinalStatus = isSimulationComplete
+    const isConnected = gpsStatus === "connected" && isDataReady
 
     return (
       <Card className="mb-6 bg-white border border-gray-200 shadow-sm">
@@ -893,7 +708,7 @@ const Vehicles = () => {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setSelectedVehicle(null)}
+                onClick={handleBackNavigation}
                 className="flex items-center gap-2 hover:bg-gray-100"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -901,21 +716,9 @@ const Vehicles = () => {
 
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div
-                    className={`relative p-3 rounded-full ${
-                      showFinalStatus ? (gpsStatus === "connected" ? "bg-green-100" : "bg-red-100") : "bg-blue-100"
-                    }`}
-                  >
-                    {!showFinalStatus && <div className="absolute inset-0 rounded-full bg-blue-200 animate-ping"></div>}
-                    <Car
-                      className={`h-6 w-6 relative z-10 ${
-                        showFinalStatus
-                          ? gpsStatus === "connected"
-                            ? "text-green-600"
-                            : "text-red-600"
-                          : "text-blue-600"
-                      }`}
-                    />
+                  <div className={`relative p-3 rounded-full ${isConnected ? "bg-green-100" : "bg-blue-100"}`}>
+                    {!isConnected && <div className="absolute inset-0 rounded-full bg-blue-200 animate-ping"></div>}
+                    <Car className={`h-6 w-6 relative z-10 ${isConnected ? "text-green-600" : "text-blue-600"}`} />
                   </div>
                 </div>
 
@@ -933,12 +736,8 @@ const Vehicles = () => {
                 <div className="relative">
                   <Activity
                     className={`h-5 w-5 ${
-                      showFinalStatus
-                        ? gpsStatus === "connected"
-                          ? "text-green-600"
-                          : "text-red-600"
-                        : "text-blue-600 animate-pulse"
-                    }`}
+                      isConnected ? "text-green-600" : "text-blue-600"
+                    } ${!isConnected ? "animate-pulse" : ""}`}
                   />
                 </div>
                 <div>
@@ -950,28 +749,16 @@ const Vehicles = () => {
               {/* Connection Status */}
               <div className="flex items-center gap-3">
                 <div className="relative">
-                  {showFinalStatus ? (
-                    gpsStatus === "connected" ? (
-                      <CheckCircle className="h-5 w-5 text-green-600" />
-                    ) : (
-                      <XCircle className="h-5 w-5 text-red-600" />
-                    )
+                  {isConnected ? (
+                    <CheckCircle className="h-5 w-5 text-green-600" />
                   ) : (
                     <Activity className="h-5 w-5 text-blue-600 animate-pulse" />
                   )}
                 </div>
                 <div>
                   <div className="text-xs text-gray-500">Status</div>
-                  <div
-                    className={`text-sm font-semibold ${
-                      showFinalStatus
-                        ? gpsStatus === "connected"
-                          ? "text-green-600"
-                          : "text-red-600"
-                        : "text-blue-600"
-                    }`}
-                  >
-                    {showFinalStatus ? (gpsStatus === "connected" ? "CONNECTED" : "DISCONNECTED") : "CONNECTING"}
+                  <div className={`text-sm font-semibold ${isConnected ? "text-green-600" : "text-blue-600"}`}>
+                    {isConnected ? "CONNECTED" : "CONNECTING"}
                   </div>
                 </div>
               </div>
@@ -982,7 +769,7 @@ const Vehicles = () => {
                 <div>
                   <div className="text-xs text-gray-500">Last Update</div>
                   <div className="text-sm font-semibold text-gray-900">
-                    {showFinalStatus && gpsStatus === "connected" ? lastUpdate.toLocaleTimeString() : "--:--"}
+                    {isConnected ? lastUpdate.toLocaleTimeString() : "--:--"}
                   </div>
                 </div>
               </div>
@@ -995,13 +782,7 @@ const Vehicles = () => {
                   <div
                     key={bar}
                     className={`w-2 rounded-t transition-all duration-300 ${
-                      signalStrength >= bar * 20
-                        ? showFinalStatus
-                          ? gpsStatus === "connected"
-                            ? "bg-green-500"
-                            : "bg-red-500"
-                          : "bg-blue-500"
-                        : "bg-gray-300"
+                      signalStrength >= bar * 20 ? (isConnected ? "bg-green-500" : "bg-blue-500") : "bg-gray-300"
                     }`}
                     style={{ height: signalStrength >= bar * 20 ? `${bar * 4 + 8}px` : "8px" }}
                   />
@@ -1011,22 +792,16 @@ const Vehicles = () => {
               <div className="flex items-center gap-2">
                 <div
                   className={`w-2 h-2 rounded-full ${
-                    showFinalStatus
-                      ? gpsStatus === "connected"
-                        ? "bg-green-500 animate-pulse"
-                        : "bg-red-500"
-                      : "bg-blue-500 animate-pulse"
+                    isConnected ? "bg-green-500 animate-pulse" : "bg-blue-500 animate-pulse"
                   }`}
                 ></div>
-                <span className="text-xs text-gray-600 font-medium">
-                  {showFinalStatus ? (gpsStatus === "connected" ? "LIVE" : "OFFLINE") : "SYNC"}
-                </span>
+                <span className="text-xs text-gray-600 font-medium">{isConnected ? "LIVE" : "SYNC"}</span>
               </div>
             </div>
           </div>
 
-          {/* Progress Bar for Connection - Only show during connection */}
-          {!showFinalStatus && (
+          {/* Progress Bar for Connection - Only show while connecting */}
+          {!isConnected && (
             <div className="mt-4">
               <Progress value={connectionProgress} className="h-2" />
               <div className="text-center text-sm text-gray-600 mt-2">
@@ -1035,14 +810,10 @@ const Vehicles = () => {
             </div>
           )}
 
-          {/* Final Status Message - Only show when complete */}
-          {showFinalStatus && (
+          {/* Final Status Message */}
+          {isConnected && (
             <div className="mt-4 text-center">
-              <div className={`text-sm font-medium ${gpsStatus === "connected" ? "text-green-600" : "text-red-600"}`}>
-                {gpsStatus === "connected"
-                  ? "✓ GPS connection established successfully"
-                  : "✗ Unable to establish GPS connection"}
-              </div>
+              <div className="text-sm font-medium text-green-600">✓ GPS connection established successfully</div>
             </div>
           )}
         </CardContent>
@@ -1070,29 +841,7 @@ const Vehicles = () => {
     </Card>
   )
 
-  const SkeletonTable = () => (
-    <Card>
-      <CardHeader>
-        <div className="h-6 bg-gray-200 rounded w-48 animate-pulse"></div>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex space-x-4">
-              <div className="h-4 bg-gray-200 rounded w-4 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-20 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-24 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-            </div>
-          ))}
-        </div>
-      </CardContent>
-    </Card>
-  )
-
-  // If a vehicle is selected, show the detail view
+  // If a vehicle is selected, show the unified detail view
   if (selectedVehicle) {
     return (
       <SidebarProvider>
@@ -1104,392 +853,314 @@ const Vehicles = () => {
                 {/* GPS Status Panel */}
                 <GPSStatusPanel />
 
-                {/* Vehicle Details & Analytics Header */}
-                {/* Vehicle Report Header */}
-                <div className="text-center mb-8">
-                  <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
-                    Here is a report of your vehicle
-                  </h2>
-                  <p className="text-muted-foreground">
-                    Complete analytics and monitoring dashboard for {selectedVehicle?.name}
-                  </p>
+                {/* Vehicle Overview Header */}
+                <div className="text-center mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900 mb-2">Here is a report of your vehicle</h2>
+                  <p className="text-muted-foreground">Complete overview including fuel events, charts, and records</p>
                 </div>
 
-                {/* Vehicle Information Section */}
-                <div className="space-y-8">
-                  {/* Vehicle Info Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {!isSimulationComplete ? (
-                      <>
-                        <SkeletonCard />
-                        <SkeletonCard />
-                        <SkeletonCard />
-                      </>
-                    ) : (
-                      <>
-                        <Card className="border-l-4 border-l-blue-500">
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Vehicle Information</CardTitle>
-                            <Car className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.name}</div>
-                              <div className="text-sm text-muted-foreground space-y-1">
-                                <div className="flex justify-between">
-                                  <span>License:</span>
-                                  <span className="font-mono">{selectedVehicle.license_plate}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>IMEI:</span>
-                                  <span className="font-mono text-xs">{selectedVehicle.imei}</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Type:</span>
-                                  <span>{getVehicleTypeDisplay(selectedVehicle.type)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="border-l-4 border-l-green-500">
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Driver Information</CardTitle>
-                            <User className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.driver_name}</div>
-                              <div className="text-sm text-muted-foreground space-y-1">
-                                <div className="flex justify-between">
-                                  <span>Phone:</span>
-                                  <span className="font-mono">{selectedVehicle.driver_phone}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                  <span>Status:</span>
-                                  {getStatusBadge({ ...selectedVehicle, status: "ACTIVE" })}
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-
-                        <Card className="border-l-4 border-l-orange-500">
-                          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                            <CardTitle className="text-sm font-medium">Fuel Information</CardTitle>
-                            <Fuel className="h-4 w-4 text-muted-foreground" />
-                          </CardHeader>
-                          <CardContent>
-                            <div className="space-y-2">
-                              <div className="text-2xl font-bold">{selectedVehicle.fuel_capacity}L</div>
-                              <div className="text-sm text-muted-foreground space-y-1">
-                                <div className="flex justify-between">
-                                  <span>Current:</span>
-                                  <span className="font-semibold">{vehicleFuelRecords[0]?.fuel_liters || 0}L</span>
-                                </div>
-                                <div className="flex justify-between">
-                                  <span>Records:</span>
-                                  <span>{vehicleFuelRecords.length}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </>
-                    )}
-                  </div>
-
-                  {/* Quick Statistics */}
-                  
-                  {/* Fuel Level Chart */}
-                  {!isSimulationComplete ? (
-                    <SkeletonCard />
+                {/* Vehicle Info Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  {!isDataReady ? (
+                    <>
+                      <SkeletonCard />
+                      <SkeletonCard />
+                      <SkeletonCard />
+                    </>
                   ) : (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <LineChart className="h-5 w-5" />
-                          Fuel Levels Over Time
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          This chart shows how much fuel is in your vehicle tank over time. The red line indicates when
-                          fuel is running low (50L warning).
-                        </p>
-                      </CardHeader>
-                      <CardContent>
-                        {chartData.length > 0 ? (
-                          <ChartContainer
-                            className="h-[400px] w-full"
-                            config={{
-                              level: { label: "Fuel Levels", color: "hsl(var(--chart-1))" },
-                            }}
-                          >
-                            <ResponsiveContainer width="100%" height="100%">
-                              <LineChart data={chartData}>
-                                <CartesianGrid strokeDasharray="0 0" className="stroke-muted" />
-                                <XAxis
-                                  dataKey="time"
-                                  tick={{ fontSize: 11 }}
-                                  angle={-45}
-                                  textAnchor="end"
-                                  height={80}
-                                  axisLine={false}
-                                  tickLine={false}
-                                  label={{
-                                    value: "Time Period",
-                                    position: "insideBottom",
-                                    offset: -10,
-                                    style: { textAnchor: "middle", fontSize: "14px", fontWeight: "bold" },
-                                  }}
-                                />
-                                <YAxis
-                                  tick={{ fontSize: 12 }}
-                                  domain={[0, Math.max(...vehicleFuelRecords.map((r) => r.fuel_liters), 100)]}
-                                  label={{
-                                    value: "Fuel Amount (Liters)",
-                                    angle: -90,
-                                    position: "insideLeft",
-                                    style: { textAnchor: "middle", fontSize: "14px", fontWeight: "bold" },
-                                  }}
-                                />
-                                <Tooltip />
-                                <Legend />
-                                <ReferenceLine y={50} stroke="red" strokeDasharray="5 5" label="Low Fuel" />
-                                <Line
-                                  type="monotone"
-                                  dataKey="level"
-                                  stroke="#2563eb"
-                                  strokeWidth={2}
-                                  name="Fuel Level"
-                                />
-                              </LineChart>
-                            </ResponsiveContainer>
-                          </ChartContainer>
-                        ) : (
-                          <div className="h-[400px] flex items-center justify-center border border-dashed rounded-lg">
-                            <p className="text-muted-foreground">No fuel data available</p>
+                    <>
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Vehicle Info</CardTitle>
+                          <Car className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>License: {selectedVehicle.license_plate}</div>
+                              <div>IMEI: {selectedVehicle.imei}</div>
+                              <div>Type: {getVehicleTypeDisplay(selectedVehicle.type)}</div>
+                            </div>
                           </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
+                        </CardContent>
+                      </Card>
 
-                  {/* Fuel Events Section */}
-                  {!isSimulationComplete ? (
-                    <SkeletonTable />
-                  ) : (
-                    <Card data-events-section>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <ShieldAlert className="h-5 w-5" />
-                          Fuel Events & Activities
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          Monitor all fuel-related events including theft alerts and refueling activities
-                        </p>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Filters */}
-                        <Card className="bg-gray-50">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              <Filter className="h-4 w-4" />
-                              Event Filters
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex gap-4 items-center flex-wrap">
-                              <div className="flex items-center gap-2">
-                                <Label className="text-sm font-medium">Event Type:</Label>
-                                <Select value={fuelEventsFilter} onValueChange={setFuelEventsFilter}>
-                                  <SelectTrigger className="w-32">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="all">All Events</SelectItem>
-                                    <SelectItem value="theft">Theft</SelectItem>
-                                    <SelectItem value="fill">Fill</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <Label className="text-sm font-medium">Date Range:</Label>
-                                <Select value={fuelEventsDateFilter} onValueChange={setFuelEventsDateFilter}>
-                                  <SelectTrigger className="w-32">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="all">All Time</SelectItem>
-                                    <SelectItem value="7">Last 7 days</SelectItem>
-                                    <SelectItem value="30">Last 30 days</SelectItem>
-                                    <SelectItem value="90">Last 90 days</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <Button
-                                variant="outline"
-                                onClick={() => {
-                                  setFuelEventsFilter("all")
-                                  setFuelEventsDateFilter("all")
-                                  setSelectedFuelEvents([])
-                                }}
-                              >
-                                Clear Filters
-                              </Button>
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Driver Info</CardTitle>
+                          <User className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.driver_name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>Phone: {selectedVehicle.driver_phone}</div>
+                              <div>Status: {getStatusBadge({ ...selectedVehicle, status: "ACTIVE" })}</div>
                             </div>
-                          </CardContent>
-                        </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
 
-                        <ScrollArea className="h-[400px] border rounded-lg">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-12">
-                                  <Checkbox
-                                    checked={
-                                      selectedFuelEvents.length === getFilteredFuelEvents().length &&
-                                      getFilteredFuelEvents().length > 0
-                                    }
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedFuelEvents(getFilteredFuelEvents().map((e) => e.id))
-                                      } else {
-                                        setSelectedFuelEvents([])
-                                      }
-                                    }}
-                                  />
-                                </TableHead>
-                                <TableHead>Event</TableHead>
-                                <TableHead>Date and Time</TableHead>
-                                <TableHead>Fuel Change</TableHead>
-                                <TableHead>Location</TableHead>
-                                <TableHead>Vehicle State</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {getFilteredFuelEvents().map((event) => (
-                                <TableRow key={event.id}>
-                                  <TableCell>
-                                    <Checkbox
-                                      checked={selectedFuelEvents.includes(event.id)}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
-                                          setSelectedFuelEvents([...selectedFuelEvents, event.id])
-                                        } else {
-                                          setSelectedFuelEvents(selectedFuelEvents.filter((id) => id !== event.id))
-                                        }
-                                      }}
-                                    />
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center gap-2">
-                                      {getEventIcon(event.event_type)}
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">
-                                          {event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}
-                                        </span>
-                                        <Badge
-                                          variant={event.event_type === "theft" ? "destructive" : "default"}
-                                          className="text-xs w-fit"
-                                        >
-                                          {event.event_type === "theft" ? "THEFT" : "FILL"}
-                                        </Badge>
-                                      </div>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="font-mono text-xs">
-                                    {new Date(event.timestamp).toLocaleString()}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex flex-col">
-                                      <span
-                                        className={`font-semibold ${
-                                          event.event_type === "theft" ? "text-red-600" : "text-green-600"
-                                        }`}
-                                      >
-                                        {event.event_type === "theft" ? "-" : "+"}
-                                        {Math.abs(event.fuel_change.amount_liters)}L
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">
-                                        {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
-                                      </span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell className="font-mono text-xs">
-                                    <div className="flex items-center gap-1">
-                                      <MapPin className="h-3 w-3" />
-                                      {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="flex gap-1">
-                                      <Badge
-                                        variant={event.vehicle_state.ignition ? "default" : "secondary"}
-                                        className="text-xs"
-                                      >
-                                        {event.vehicle_state.ignition ? "ON" : "OFF"}
-                                      </Badge>
-                                      <Badge variant="outline" className="text-xs">
-                                        {event.vehicle_state.speed} km/h
-                                      </Badge>
-                                    </div>
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadAllFuelEvents}
-                            className="flex items-center gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download All Events
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadSelectedFuelEvents}
-                            disabled={selectedFuelEvents.length === 0}
-                            className="flex items-center gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download Selected ({selectedFuelEvents.length})
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      <Card>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">Fuel Capacity</CardTitle>
+                          <Fuel className="h-4 w-4 text-muted-foreground" />
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-2">
+                            <div className="text-2xl font-bold">{selectedVehicle.fuel_capacity}L</div>
+                            <div className="text-sm text-muted-foreground">
+                              <div>Current: {vehicleFuelRecords[0]?.fuel_liters || 0}L</div>
+                              <div>Records: {vehicleFuelRecords.length}</div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </>
                   )}
+                </div>
 
-                  {/* Fuel Records Section */}
-                  {!isSimulationComplete ? (
-                    <SkeletonTable />
+                {/* Quick Stats - Clickable Event Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {!isDataReady ? (
+                    <>
+                      <SkeletonCard />
+                      <SkeletonCard />
+                      <SkeletonCard />
+                    </>
                   ) : (
-                    <Card data-records-section>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <Activity className="h-5 w-5" />
-                          Detailed Fuel Records
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          Complete history of fuel level readings with timestamps and vehicle status
-                        </p>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        {/* Date Range Filters */}
-                        <Card className="bg-gray-50">
-                          <CardHeader className="pb-3">
-                            <CardTitle className="flex items-center gap-2 text-base">
-                              <Filter className="h-4 w-4" />
-                              Date Range Filters
-                            </CardTitle>
-                          </CardHeader>
-                          <CardContent>
-                            <div className="flex gap-4 items-center flex-wrap">
+                    <>
+                      <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleEventCardClick("theft")}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold text-red-600">
+                            {vehicleFuelEvents.filter((e) => e.event_type === "theft").length}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Theft Events</p>
+                        </CardContent>
+                      </Card>
+                      <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => handleEventCardClick("fill")}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold text-green-600">
+                            {vehicleFuelEvents.filter((e) => e.event_type === "fill").length}
+                          </div>
+                          <p className="text-xs text-muted-foreground">Fill Events</p>
+                        </CardContent>
+                      </Card>
+                      <Card
+                        className="cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={handleFuelRecordsCardClick}
+                      >
+                        <CardContent className="pt-6">
+                          <div className="text-2xl font-bold">{vehicleFuelRecords.length}</div>
+                          <p className="text-xs text-muted-foreground">Fuel Records</p>
+                        </CardContent>
+                      </Card>
+                    </>
+                  )}
+                </div>
+
+                {/* Fuel Level Chart */}
+                {isDataReady && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>Fuel Levels Over Time</CardTitle>
+                      <p className="text-sm text-muted-foreground">
+                        This chart shows how much fuel is in your vehicle tank over time. The red line indicates when
+                        fuel is running low (50L warning).
+                      </p>
+                    </CardHeader>
+                    <CardContent>
+                      {chartData.length > 0 ? (
+                        <ChartContainer
+                          className="h-[400px] w-full"
+                          config={{
+                            level: { label: "Fuel Level", color: "#2563eb" },
+                          }}
+                        >
+                          <ResponsiveContainer width="100%" height="100%">
+                            <LineChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                              <XAxis
+                                dataKey="time"
+                                tick={{ fontSize: 12, fill: "#6b7280" }}
+                                angle={-45}
+                                textAnchor="end"
+                                height={80}
+                                axisLine={{ stroke: "#d1d5db" }}
+                                tickLine={{ stroke: "#d1d5db" }}
+                              />
+                              <YAxis
+                                tick={{ fontSize: 12, fill: "#6b7280" }}
+                                domain={[0, 100]}
+                                axisLine={{ stroke: "#d1d5db" }}
+                                tickLine={{ stroke: "#d1d5db" }}
+                                label={{
+                                  value: "Fuel Amount (Liters)",
+                                  angle: -90,
+                                  position: "insideLeft",
+                                  style: { textAnchor: "middle", fontSize: "12px", fill: "#6b7280" },
+                                }}
+                              />
+                              <Tooltip
+                                content={({ active, payload, label }) => {
+                                  if (active && payload && payload.length) {
+                                    return (
+                                      <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
+                                        <p className="text-sm font-medium text-gray-900">{label}</p>
+                                        <p className="text-sm text-blue-600">
+                                          Fuel Level: <span className="font-semibold">{payload[0].value}</span>
+                                        </p>
+                                      </div>
+                                    )
+                                  }
+                                  return null
+                                }}
+                              />
+                              <ReferenceLine
+                                y={50}
+                                stroke="#ef4444"
+                                strokeDasharray="5 5"
+                                label={{ value: "Low Fuel", position: "top", fill: "#ef4444", fontSize: 12 }}
+                              />
+                              <Line
+                                dataKey="level"
+                                type="monotone"
+                                stroke="#2563eb"
+                                strokeWidth={2}
+                                dot={{
+                                  fill: "#2563eb",
+                                  strokeWidth: 2,
+                                  r: 4,
+                                  stroke: "#ffffff",
+                                }}
+                                activeDot={{
+                                  r: 6,
+                                  stroke: "#2563eb",
+                                  strokeWidth: 2,
+                                  fill: "#ffffff",
+                                }}
+                                connectNulls={false}
+                              />
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </ChartContainer>
+                      ) : (
+                        <div className="h-[400px] flex items-center justify-center border border-dashed rounded-lg">
+                          <p className="text-muted-foreground">No fuel data available</p>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Fuel Events Table */}
+                {isDataReady && (
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>Recent Fuel Events</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <ScrollArea className="h-[400px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Event</TableHead>
+                              <TableHead>Date and Time</TableHead>
+                              <TableHead>Fuel Change</TableHead>
+                              <TableHead>Location</TableHead>
+                              <TableHead>Vehicle State</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {vehicleFuelEvents.slice(0, 10).map((event) => (
+                              <TableRow key={event.id}>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {getEventIcon(event.event_type)}
+                                    <div className="flex flex-col">
+                                      <span className="font-medium">
+                                        {event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}
+                                      </span>
+                                      <Badge
+                                        variant={event.event_type === "theft" ? "destructive" : "default"}
+                                        className="text-xs w-fit"
+                                      >
+                                        {event.event_type === "theft" ? "THEFT" : "FILL"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  {new Date(event.timestamp).toLocaleString()}
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex flex-col">
+                                    <span
+                                      className={`font-semibold ${
+                                        event.event_type === "theft" ? "text-red-600" : "text-green-600"
+                                      }`}
+                                    >
+                                      {event.event_type === "theft" ? "-" : "+"}
+                                      {Math.abs(event.fuel_change.amount_liters)}L
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">
+                                      {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">
+                                  <div className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex gap-1">
+                                    <Badge
+                                      variant={event.vehicle_state.ignition ? "default" : "secondary"}
+                                      className="text-xs"
+                                    >
+                                      {event.vehicle_state.ignition ? "ON" : "OFF"}
+                                    </Badge>
+                                    <Badge variant="outline" className="text-xs">
+                                      {event.vehicle_state.speed} km/h
+                                    </Badge>
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Fuel Records Table */}
+                {isDataReady && (
+                  <Card data-fuel-records-section>
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle>Recent Fuel Records</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {/* Filters */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Filter className="h-4 w-4" />
+                            Filters
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex gap-4 items-center">
+                            <div className="flex gap-4 items-center">
                               <div className="flex items-center gap-2">
                                 <Label className="text-sm font-medium">Start Date:</Label>
                                 <Input
@@ -1516,153 +1187,104 @@ const Vehicles = () => {
                                   setSelectedFuelRecords([])
                                 }}
                               >
-                                Clear Dates
+                                Clear
                               </Button>
                             </div>
-                          </CardContent>
-                        </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
 
-                        <ScrollArea className="h-[400px] border rounded-lg">
-                          <Table>
-                            <TableHeader>
-                              <TableRow>
-                                <TableHead className="w-12">
-                                  <Checkbox
-                                    checked={
-                                      selectedFuelRecords.length === getFilteredFuelRecords().length &&
-                                      getFilteredFuelRecords().length > 0
+                      <ScrollArea className="h-[400px]">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12">
+                                <Checkbox
+                                  checked={
+                                    selectedFuelRecords.length === getFilteredFuelRecords().length &&
+                                    getFilteredFuelRecords().length > 0
+                                  }
+                                  onCheckedChange={(checked) => {
+                                    if (checked) {
+                                      setSelectedFuelRecords(
+                                        getFilteredFuelRecords().map((r, index) => r.id || index.toString()),
+                                      )
+                                    } else {
+                                      setSelectedFuelRecords([])
                                     }
-                                    onCheckedChange={(checked) => {
-                                      if (checked) {
-                                        setSelectedFuelRecords(
-                                          getFilteredFuelRecords().map((r, index) => r.id || index.toString()),
-                                        )
-                                      } else {
-                                        setSelectedFuelRecords([])
-                                      }
-                                    }}
-                                  />
-                                </TableHead>
-                                <TableHead>Date and Time</TableHead>
-                                <TableHead>Fuel Levels</TableHead>
-                                <TableHead>Odometer</TableHead>
-                                <TableHead>Speed</TableHead>
-                                <TableHead>Status</TableHead>
-                              </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                              {getFilteredFuelRecords()
-                                .slice(0, 20)
-                                .map((record, index) => (
-                                  <TableRow key={record.id || index}>
-                                    <TableCell>
-                                      <Checkbox
-                                        checked={selectedFuelRecords.includes(record.id || index.toString())}
-                                        onCheckedChange={(checked) => {
-                                          const recordId = record.id || index.toString()
-                                          if (checked) {
-                                            setSelectedFuelRecords([...selectedFuelRecords, recordId])
-                                          } else {
-                                            setSelectedFuelRecords(selectedFuelRecords.filter((id) => id !== recordId))
-                                          }
-                                        }}
-                                      />
-                                    </TableCell>
-                                    <TableCell className="font-mono text-xs">
-                                      {new Date(record.timestamp).toLocaleString()}
-                                    </TableCell>
-                                    <TableCell className={record.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
-                                      {record.fuel_liters}L
-                                    </TableCell>
-                                    <TableCell>{record.odometer} km</TableCell>
-                                    <TableCell>{record.speed} km/h</TableCell>
-                                    <TableCell>
-                                      <Badge
-                                        variant={record.ignition ? "default" : "secondary"}
-                                        className={`text-xs ${record.ignition ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}`}
-                                      >
-                                        {record.ignition ? "ON" : "OFF"}
-                                      </Badge>
-                                    </TableCell>
-                                  </TableRow>
-                                ))}
-                            </TableBody>
-                          </Table>
-                        </ScrollArea>
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadAllFuelRecords}
-                            className="flex items-center gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download All Records
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={downloadSelectedFuelRecords}
-                            disabled={selectedFuelRecords.length === 0}
-                            className="flex items-center gap-2"
-                          >
-                            <Download className="h-4 w-4" />
-                            Download Selected ({selectedFuelRecords.length})
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </div>
-
-                {/* Navigation Cards Section */}
-                <div className="mt-8 border-t pt-8">
-                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <Car className="h-5 w-5" />
-                    Quick Navigation
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    {/* Theft Events Card */}
-                                        {/* Fill Events Card */}
-                    <a href="/dashboard/fuel-report" >
-  <Card
-    className="cursor-pointer hover:shadow-lg transition-all duration-200 border-yellow-200 hover:border-yelloe-300 bg-gradient-to-br from-yellow-50 to-yellow-100"
-  >
-    <CardContent className="p-6 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="p-3 bg-blue-500 rounded-full">
-          <Fuel className="h-6 w-6 text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-blue-700">Fuel Report</p>
-          <p className="text-xs text-blue-600 mt-1">Click to view Fuel Report</p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-</a>
-
-
-<a href="/dashboard/fuel-reportfuel-events" >
-  <Card
-    className="cursor-pointer hover:shadow-lg transition-all duration-200 border-blue-200 hover:border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100"
-  >
-    <CardContent className="p-6 text-center">
-      <div className="flex flex-col items-center gap-3">
-        <div className="p-3 bg-blue-500 rounded-full">
-          <Activity className="h-6 w-6 text-white" />
-        </div>
-        <div>
-          <p className="text-sm font-medium text-blue-700">Fuel Analysis</p>
-          <p className="text-xs text-blue-600 mt-1">Click to view Fuel Analysis</p>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-</a>
-
-                  </div>
-                </div>
+                                  }}
+                                />
+                              </TableHead>
+                              <TableHead>Date and Time</TableHead>
+                              <TableHead>Fuel Levels</TableHead>
+                              <TableHead>Odometer</TableHead>
+                              <TableHead>Speed</TableHead>
+                              <TableHead>Status</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {getFilteredFuelRecords()
+                              .slice(0, 20)
+                              .map((record, index) => (
+                                <TableRow key={record.id || index}>
+                                  <TableCell>
+                                    <Checkbox
+                                      checked={selectedFuelRecords.includes(record.id || index.toString())}
+                                      onCheckedChange={(checked) => {
+                                        const recordId = record.id || index.toString()
+                                        if (checked) {
+                                          setSelectedFuelRecords([...selectedFuelRecords, recordId])
+                                        } else {
+                                          setSelectedFuelRecords(selectedFuelRecords.filter((id) => id !== recordId))
+                                        }
+                                      }}
+                                    />
+                                  </TableCell>
+                                  <TableCell className="font-mono text-xs">
+                                    {new Date(record.timestamp).toLocaleString()}
+                                  </TableCell>
+                                  <TableCell className={record.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
+                                    {record.fuel_liters}L
+                                  </TableCell>
+                                  <TableCell>{record.odometer} km</TableCell>
+                                  <TableCell>{record.speed} km/h</TableCell>
+                                  <TableCell>
+                                    <Badge
+                                      variant={record.ignition ? "default" : "secondary"}
+                                      className={`text-xs ${record.ignition ? "bg-green-600 hover:bg-green-700 text-white" : "bg-red-600 hover:bg-red-700 text-white"}`}
+                                    >
+                                      {record.ignition ? "ON" : "OFF"}
+                                    </Badge>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadAllFuelRecords}
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download All
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={downloadSelectedFuelRecords}
+                          disabled={selectedFuelRecords.length === 0}
+                          className="flex items-center gap-2"
+                        >
+                          <Download className="h-4 w-4" />
+                          Download Selected ({selectedFuelRecords.length})
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </div>
           </SidebarInset>
@@ -1690,147 +1312,114 @@ const Vehicles = () => {
                     <p className="text-muted-foreground mt-2">Manage and monitor your fleet vehicles</p>
                   </div>
                 </div>
-                <Button onClick={() => setShowCreateForm(true)} className="flex items-center gap-2">
-                  <Car className="h-4 w-4" />
-                  Create Vehicle
-                </Button>
-              </div>
 
-              {/* Create Vehicle Form Modal */}
-              {showCreateForm && (
-                <Card className="mb-6">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle>Create New Vehicle</CardTitle>
-                      <Button variant="ghost" size="sm" onClick={() => setShowCreateForm(false)} disabled={isCreating}>
-                        <XCircle className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    {showSavedMessage ? (
-                      <div className="text-center py-8">
-                        <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
-                        <h3 className="text-lg font-semibold text-green-600 mb-2">Saved!</h3>
-                        <p className="text-muted-foreground">Vehicle created successfully. Returning to list...</p>
-                      </div>
-                    ) : (
-                      <form onSubmit={handleCreateVehicle} className="space-y-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="space-y-2">
-                            <Label htmlFor="name">Vehicle Name *</Label>
-                            <Input
-                              id="name"
-                              value={createFormData.name}
-                              onChange={(e) => setCreateFormData({ ...createFormData, name: e.target.value })}
-                              placeholder="Enter vehicle name"
-                              required
-                              disabled={isCreating}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="imei">IMEI *</Label>
-                            <Input
-                              id="imei"
-                              value={createFormData.imei}
-                              onChange={(e) => setCreateFormData({ ...createFormData, imei: e.target.value })}
-                              placeholder="Enter IMEI number"
-                              required
-                              disabled={isCreating}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="type">Vehicle Type *</Label>
-                            <Select
-                              value={createFormData.type}
-                              onValueChange={(value) => setCreateFormData({ ...createFormData, type: value })}
-                              disabled={isCreating}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="car">Car</SelectItem>
-                                <SelectItem value="truck">Truck</SelectItem>
-                                <SelectItem value="bus">Bus</SelectItem>
-                                <SelectItem value="motorcycle">Motorcycle</SelectItem>
-                                <SelectItem value="other">Other</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="license_plate">License Plate *</Label>
-                            <Input
-                              id="license_plate"
-                              value={createFormData.license_plate}
-                              onChange={(e) => setCreateFormData({ ...createFormData, license_plate: e.target.value })}
-                              placeholder="Enter license plate"
-                              required
-                              disabled={isCreating}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="driver_name">Driver Name *</Label>
-                            <Input
-                              id="driver_name"
-                              value={createFormData.driver_name}
-                              onChange={(e) => setCreateFormData({ ...createFormData, driver_name: e.target.value })}
-                              placeholder="Enter driver name"
-                              required
-                              disabled={isCreating}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="driver_phone">Driver Phone *</Label>
-                            <Input
-                              id="driver_phone"
-                              value={createFormData.driver_phone}
-                              onChange={(e) => setCreateFormData({ ...createFormData, driver_phone: e.target.value })}
-                              placeholder="Enter driver phone"
-                              required
-                              disabled={isCreating}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="fuel_capacity">Fuel Capacity (Liters)</Label>
-                            <Input
-                              id="fuel_capacity"
-                              value={createFormData.fuel_capacity}
-                              onChange={(e) => setCreateFormData({ ...createFormData, fuel_capacity: e.target.value })}
-                              placeholder="Enter fuel capacity"
-                              type="number"
-                              disabled={isCreating}
-                            />
-                          </div>
+                {/* Create Vehicle Button */}
+                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Create Vehicle
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                    <DialogHeader>
+                      <DialogTitle>Create New Vehicle</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="vehicle-name">Vehicle Name *</Label>
+                          <Input
+                            id="vehicle-name"
+                            placeholder="e.g., Fleet Truck 001"
+                            value={newVehicle.name}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, name: e.target.value }))}
+                          />
                         </div>
-                        <div className="flex justify-end gap-2 pt-4">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => setShowCreateForm(false)}
-                            disabled={isCreating}
+                        <div>
+                          <Label htmlFor="vehicle-imei">IMEI *</Label>
+                          <Input
+                            id="vehicle-imei"
+                            placeholder="e.g., 123456789012345"
+                            value={newVehicle.imei}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, imei: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="vehicle-type">Vehicle Type</Label>
+                          <Select
+                            value={newVehicle.type}
+                            onValueChange={(value) => setNewVehicle((prev) => ({ ...prev, type: value }))}
                           >
-                            Cancel
-                          </Button>
-                          <Button type="submit" disabled={isCreating} className="flex items-center gap-2">
-                            {isCreating ? (
-                              <>
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                                Creating...
-                              </>
-                            ) : (
-                              <>
-                                <CheckCircle className="h-4 w-4" />
-                                Create Vehicle
-                              </>
-                            )}
-                          </Button>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="car">Car</SelectItem>
+                              <SelectItem value="truck">Truck</SelectItem>
+                              <SelectItem value="bus">Bus</SelectItem>
+                              <SelectItem value="motorcycle">Motorcycle</SelectItem>
+                              <SelectItem value="other">Other</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
-                      </form>
-                    )}
-                  </CardContent>
-                </Card>
-              )}
+                        <div>
+                          <Label htmlFor="license-plate">License Plate *</Label>
+                          <Input
+                            id="license-plate"
+                            placeholder="e.g., KDA381X"
+                            value={newVehicle.license_plate}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, license_plate: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="fuel-capacity">Fuel Capacity (Liters)</Label>
+                          <Input
+                            id="fuel-capacity"
+                            type="number"
+                            placeholder="e.g., 80"
+                            value={newVehicle.fuel_capacity}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, fuel_capacity: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="driver-name">Driver Name</Label>
+                          <Input
+                            id="driver-name"
+                            placeholder="e.g., John Doe"
+                            value={newVehicle.driver_name}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_name: e.target.value }))}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="driver-phone">Driver Phone</Label>
+                          <Input
+                            id="driver-phone"
+                            placeholder="e.g., +1234567890"
+                            value={newVehicle.driver_phone}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_phone: e.target.value }))}
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="notes">Notes</Label>
+                        <Textarea
+                          id="notes"
+                          placeholder="Additional notes about the vehicle..."
+                          value={newVehicle.notes}
+                          onChange={(e) => setNewVehicle((prev) => ({ ...prev, notes: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex justify-end gap-2 pt-4">
+                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button onClick={handleCreateVehicle}>Create Vehicle</Button>
+                      </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+              </div>
 
               {/* Vehicles Table */}
               <Card>

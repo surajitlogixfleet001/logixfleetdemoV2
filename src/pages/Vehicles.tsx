@@ -23,7 +23,6 @@ import {
   Fuel,
   ShieldAlert,
   Eye,
-  MapPin,
   Download,
   Filter,
   Clock,
@@ -75,18 +74,24 @@ interface VehicleDetail {
 }
 
 interface FuelRecord {
-  id: string
-  event_type: string
   timestamp: string
-  fuel_liters: number
-  odometer: number
+  vehicle_license_plate: string
+  total_fuel: number
+  fuel_tanks: {
+    tank1: number
+    tank_2: number
+  }
+  ignition: boolean
   latitude: number
   longitude: number
+  odometer: number
   speed: number
-  ignition: boolean
-  movement: boolean
-  external_voltage: number
-  engine_hours: number
+  metadata: {
+    movement: boolean
+    satellites: number
+    external_voltage: number
+    engine_hours: number
+  }
 }
 
 interface FuelEvent {
@@ -121,130 +126,10 @@ interface FuelEvent {
   }
 }
 
-// Enhanced mock data for fuel events - about 10 events with random theft and fill
-const mockFuelEvents: FuelEvent[] = [
-  {
-    id: "evt_001",
-    event_type: "fill",
-    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
-    timestamp: new Date(Date.now() - 23 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2921, longitude: 36.8219 },
-    fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    fill_details: { time_since_last_reading_minutes: 120, previous_timestamp: null },
-  },
-  {
-    id: "evt_002",
-    event_type: "theft",
-    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
-    timestamp: new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2845, longitude: 36.8156 },
-    fuel_change: { amount_liters: -12.3, before_liters: 48.5, after_liters: 36.2 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    theft_details: {
-      time_window_minutes: 30,
-      previous_timestamp: new Date(Date.now() - 21 * 60 * 60 * 1000).toISOString(),
-    },
-  },
-  {
-    id: "evt_003",
-    event_type: "fill",
-    vehicle: { license_plate: "KDE366F", name: "Vehicle 2" },
-    timestamp: new Date(Date.now() - 18 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2756, longitude: 36.8089 },
-    fuel_change: { amount_liters: 38.2, before_liters: 22.1, after_liters: 60.3 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    fill_details: { time_since_last_reading_minutes: 180, previous_timestamp: null },
-  },
-  {
-    id: "evt_004",
-    event_type: "theft",
-    vehicle: { license_plate: "KDE386N", name: "Vehicle 3" },
-    timestamp: new Date(Date.now() - 16 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2934, longitude: 36.8267 },
-    fuel_change: { amount_liters: -8.7, before_liters: 55.4, after_liters: 46.7 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    theft_details: {
-      time_window_minutes: 45,
-      previous_timestamp: new Date(Date.now() - 17 * 60 * 60 * 1000).toISOString(),
-    },
-  },
-  {
-    id: "evt_005",
-    event_type: "fill",
-    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
-    timestamp: new Date(Date.now() - 14 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2678, longitude: 36.8012 },
-    fuel_change: { amount_liters: 42.8, before_liters: 18.9, after_liters: 61.7 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    fill_details: { time_since_last_reading_minutes: 90, previous_timestamp: null },
-  },
-  {
-    id: "evt_006",
-    event_type: "theft",
-    vehicle: { license_plate: "KDE366F", name: "Vehicle 2" },
-    timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2845, longitude: 36.8156 },
-    fuel_change: { amount_liters: -15.2, before_liters: 45.3, after_liters: 30.1 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    theft_details: {
-      time_window_minutes: 25,
-      previous_timestamp: new Date(Date.now() - 13 * 60 * 60 * 1000).toISOString(),
-    },
-  },
-  {
-    id: "evt_007",
-    event_type: "fill",
-    vehicle: { license_plate: "KDE386N", name: "Vehicle 3" },
-    timestamp: new Date(Date.now() - 10 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2567, longitude: 36.789 },
-    fuel_change: { amount_liters: 50.3, before_liters: 25.4, after_liters: 75.7 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    fill_details: { time_since_last_reading_minutes: 150, previous_timestamp: null },
-  },
-  {
-    id: "evt_008",
-    event_type: "theft",
-    vehicle: { license_plate: "KDA381X", name: "Vehicle 1" },
-    timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2934, longitude: 36.8123 },
-    fuel_change: { amount_liters: -18.5, before_liters: 52.2, after_liters: 33.7 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    theft_details: {
-      time_window_minutes: 35,
-      previous_timestamp: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString(),
-    },
-  },
-  {
-    id: "evt_009",
-    event_type: "fill",
-    vehicle: { license_plate: "KDE366F", name: "Vehicle 2" },
-    timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2456, longitude: 36.8345 },
-    fuel_change: { amount_liters: 35.8, before_liters: 20.1, after_liters: 55.9 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    fill_details: { time_since_last_reading_minutes: 200, previous_timestamp: null },
-  },
-  {
-    id: "evt_010",
-    event_type: "theft",
-    vehicle: { license_plate: "KDE386N", name: "Vehicle 3" },
-    timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-    location: { latitude: -1.2789, longitude: 36.8567 },
-    fuel_change: { amount_liters: -22.1, before_liters: 68.3, after_liters: 46.2 },
-    vehicle_state: { speed: 0, ignition: false, stationary: true },
-    theft_details: {
-      time_window_minutes: 40,
-      previous_timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-    },
-  },
-]
-
 const Vehicles = () => {
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleDetail | null>(null)
   const [vehicleFuelRecords, setVehicleFuelRecords] = useState<FuelRecord[]>([])
-  const [vehicleFuelEvents, setVehicleFuelEvents] = useState<FuelEvent[]>([])
   const [loadingVehicleId, setLoadingVehicleId] = useState<number | null>(null)
   const { toast } = useToast()
   const router = useRouter()
@@ -429,45 +314,8 @@ const Vehicles = () => {
     const cacheKey = `vehicle-events-${vehicle.license_plate}`
     const cachedEvents = dataCache.get<FuelEvent[]>(cacheKey)
 
-    let vehicleMockEvents: FuelEvent[]
-
-    if (cachedEvents) {
-      vehicleMockEvents = cachedEvents
-    } else {
-      // Generate mock events and cache them
-      vehicleMockEvents = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
-
-      // If no mock events exist for this vehicle, create some generic ones
-      if (vehicleMockEvents.length === 0) {
-        vehicleMockEvents = [
-          {
-            id: `mock_${vehicle.license_plate}_001`,
-            event_type: "fill",
-            vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
-            timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-            location: { latitude: -1.2921, longitude: 36.8219 },
-            fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
-            vehicle_state: { speed: 0, ignition: false, stationary: true },
-          },
-          {
-            id: `mock_${vehicle.license_plate}_002`,
-            event_type: "theft",
-            vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
-            timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-            location: { latitude: -1.2845, longitude: 36.8156 },
-            fuel_change: { amount_liters: -12.3, before_liters: 48.5, after_liters: 36.2 },
-            vehicle_state: { speed: 0, ignition: false, stationary: true },
-          },
-        ]
-      }
-
-      // Cache the events
-      dataCache.set(cacheKey, vehicleMockEvents, 5 * 60 * 1000) // 5 minutes cache
-    }
-
     setSelectedVehicle(basicVehicleDetail)
     setVehicleFuelRecords([])
-    setVehicleFuelEvents(vehicleMockEvents)
     setIsDataReady(false)
     setLoadingVehicleId(null)
   }, [])
@@ -480,10 +328,10 @@ const Vehicles = () => {
 
       // Check cache first
       const cachedVehicleData = dataCache.get<VehicleDetail>(vehicleCacheKey)
-      const cachedFuelRecords = dataCache.get<{ fuel_records: FuelRecord[] }>(fuelRecordsCacheKey)
+      const cachedFuelRecords = dataCache.get<FuelRecord[]>(fuelRecordsCacheKey)
 
       if (cachedVehicleData && cachedFuelRecords) {
-        setVehicleFuelRecords(cachedFuelRecords.fuel_records || [])
+        setVehicleFuelRecords(cachedFuelRecords)
         setSelectedVehicle(cachedVehicleData)
         return true
       }
@@ -496,11 +344,18 @@ const Vehicles = () => {
 
       const vehicleData = vehicleResponse.data
       const fuelRecordsData = fuelRecordsResponse.data
-      const fuelRecords = fuelRecordsData.fuel_records || []
+
+      // Handle the actual API response format
+      let fuelRecords: FuelRecord[] = []
+      if (Array.isArray(fuelRecordsData)) {
+        fuelRecords = fuelRecordsData
+      } else if (fuelRecordsData.fuel_records && Array.isArray(fuelRecordsData.fuel_records)) {
+        fuelRecords = fuelRecordsData.fuel_records
+      }
 
       // Cache the data
       dataCache.set(vehicleCacheKey, vehicleData, 5 * 60 * 1000) // 5 minutes cache
-      dataCache.set(fuelRecordsCacheKey, fuelRecordsData, 3 * 60 * 1000) // 3 minutes cache for fuel records
+      dataCache.set(fuelRecordsCacheKey, fuelRecords, 3 * 60 * 1000) // 3 minutes cache for fuel records
 
       setVehicleFuelRecords(fuelRecords)
       setSelectedVehicle(vehicleData)
@@ -508,7 +363,6 @@ const Vehicles = () => {
       return true // Success
     } catch (err: unknown) {
       console.error("Error fetching vehicle details:", err)
-      // Don't show error toast for seamless experience
       return false // Failure
     }
   }, [])
@@ -597,10 +451,16 @@ const Vehicles = () => {
   const downloadAllFuelRecords = () => {
     const data = getFilteredFuelRecords().map((record) => ({
       "Date and Time": new Date(record.timestamp).toLocaleString(),
-      "Fuel Levels": `${record.fuel_liters}L`,
+      Vehicle: record.vehicle_license_plate,
+      "Total Fuel": `${record.total_fuel}L`,
+      "Tank 1": `${record.fuel_tanks.tank1}L`,
+      "Tank 2": `${record.fuel_tanks.tank_2}L`,
       Odometer: `${record.odometer} km`,
       Speed: `${record.speed} km/h`,
-      Status: record.ignition ? "ON" : "OFF",
+      Ignition: record.ignition ? "ON" : "OFF",
+      Location: `${record.latitude}, ${record.longitude}`,
+      Satellites: record.metadata.satellites,
+      "Engine Hours": `${record.metadata.engine_hours}h`,
     }))
 
     if (data.length === 0) {
@@ -646,7 +506,7 @@ const Vehicles = () => {
     )
     const data = filtered.map((record) => ({
       "Date and Time": new Date(record.timestamp).toLocaleString(),
-      "Fuel Levels": `${record.fuel_liters}L`,
+      "Fuel Levels": `${record.total_fuel}L`,
       Odometer: `${record.odometer} km`,
       Speed: `${record.speed} km/h`,
       Status: record.ignition ? "ON" : "OFF",
@@ -690,24 +550,7 @@ const Vehicles = () => {
   // Generate chart data for fuel levels
   const generateChartData = () => {
     if (!vehicleFuelRecords.length) {
-      // Return sample data that matches the uploaded image pattern
-      return [
-        { time: "Jun 15, 06:00 AM", level: 35, timestamp: new Date(Date.now() - 9 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 08:00 AM", level: 32, timestamp: new Date(Date.now() - 8 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 10:00 AM", level: 45, timestamp: new Date(Date.now() - 7 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 11:00 AM", level: 25, timestamp: new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 12:00 PM", level: 75, timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 01:00 PM", level: 72, timestamp: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 02:00 PM", level: 45, timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 03:00 PM", level: 40, timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 04:00 PM", level: 80, timestamp: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 05:00 PM", level: 78, timestamp: new Date().toISOString() },
-        { time: "Jun 15, 06:00 PM", level: 55, timestamp: new Date(Date.now() + 1 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 07:00 PM", level: 20, timestamp: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 08:00 PM", level: 65, timestamp: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 09:00 PM", level: 62, timestamp: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString() },
-        { time: "Jun 15, 10:00 PM", level: 85, timestamp: new Date(Date.now() + 5 * 60 * 60 * 1000).toISOString() },
-      ]
+      return [] // Return empty array instead of sample data
     }
 
     return vehicleFuelRecords.slice(-24).map((record) => ({
@@ -717,7 +560,7 @@ const Vehicles = () => {
         hour: "2-digit",
         minute: "2-digit",
       }),
-      level: record.fuel_liters,
+      level: record.total_fuel,
       timestamp: record.timestamp,
     }))
   }
@@ -986,7 +829,7 @@ const Vehicles = () => {
                           <div className="space-y-2">
                             <div className="text-2xl font-bold">{selectedVehicle.fuel_capacity}L</div>
                             <div className="text-sm text-muted-foreground">
-                              <div>Current: {vehicleFuelRecords[0]?.fuel_liters || 0}L</div>
+                              <div>Current: {vehicleFuelRecords[0]?.total_fuel || 0}L</div>
                               <div>Records: {vehicleFuelRecords.length}</div>
                             </div>
                           </div>
@@ -1011,9 +854,7 @@ const Vehicles = () => {
                         onClick={() => handleEventCardClick("theft")}
                       >
                         <CardContent className="pt-6">
-                          <div className="text-2xl font-bold text-red-600">
-                            {vehicleFuelEvents.filter((e) => e.event_type === "theft").length}
-                          </div>
+                          <div className="text-2xl font-bold text-red-600">0</div>
                           <p className="text-xs text-muted-foreground">Theft Events</p>
                         </CardContent>
                       </Card>
@@ -1022,9 +863,7 @@ const Vehicles = () => {
                         onClick={() => handleEventCardClick("fill")}
                       >
                         <CardContent className="pt-6">
-                          <div className="text-2xl font-bold text-green-600">
-                            {vehicleFuelEvents.filter((e) => e.event_type === "fill").length}
-                          </div>
+                          <div className="text-2xl font-bold text-green-600">0</div>
                           <p className="text-xs text-muted-foreground">Fill Events</p>
                         </CardContent>
                       </Card>
@@ -1154,63 +993,27 @@ const Vehicles = () => {
                             </TableRow>
                           </TableHeader>
                           <TableBody>
-                            {vehicleFuelEvents.slice(0, 10).map((event) => (
-                              <TableRow key={event.id}>
-                                <TableCell>
-                                  <div className="flex items-center gap-2">
-                                    {getEventIcon(event.event_type)}
-                                    <div className="flex flex-col">
-                                      <span className="font-medium">
-                                        {event.event_type.charAt(0).toUpperCase() + event.event_type.slice(1)}
-                                      </span>
-                                      <Badge
-                                        variant={event.event_type === "theft" ? "destructive" : "default"}
-                                        className="text-xs w-fit"
-                                      >
-                                        {event.event_type === "theft" ? "THEFT" : "FILL"}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs">
-                                  {new Date(event.timestamp).toLocaleString()}
-                                </TableCell>
-                                <TableCell>
+                            <TableRow>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
                                   <div className="flex flex-col">
-                                    <span
-                                      className={`font-semibold ${
-                                        event.event_type === "theft" ? "text-red-600" : "text-green-600"
-                                      }`}
-                                    >
-                                      {event.event_type === "theft" ? "-" : "+"}
-                                      {Math.abs(event.fuel_change.amount_liters)}L
-                                    </span>
-                                    <span className="text-xs text-muted-foreground">
-                                      {event.fuel_change.before_liters}L → {event.fuel_change.after_liters}L
-                                    </span>
+                                    <span className="font-medium">No Events</span>
                                   </div>
-                                </TableCell>
-                                <TableCell className="font-mono text-xs">
-                                  <div className="flex items-center gap-1">
-                                    <MapPin className="h-3 w-3" />
-                                    {event.location.latitude.toFixed(4)}, {event.location.longitude.toFixed(4)}
-                                  </div>
-                                </TableCell>
-                                <TableCell>
-                                  <div className="flex gap-1">
-                                    <Badge
-                                      variant={event.vehicle_state.ignition ? "default" : "secondary"}
-                                      className="text-xs"
-                                    >
-                                      {event.vehicle_state.ignition ? "ON" : "OFF"}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-xs">
-                                      {event.vehicle_state.speed} km/h
-                                    </Badge>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">No Events</TableCell>
+                              <TableCell>
+                                <div className="flex flex-col">
+                                  <span className={`font-semibold`}>No Events</span>
+                                </div>
+                              </TableCell>
+                              <TableCell className="font-mono text-xs">
+                                <div className="flex items-center gap-1">No Events</div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">No Events</div>
+                              </TableCell>
+                            </TableRow>
                           </TableBody>
                         </Table>
                       </ScrollArea>
@@ -1282,7 +1085,7 @@ const Vehicles = () => {
                                   onCheckedChange={(checked) => {
                                     if (checked) {
                                       setSelectedFuelRecords(
-                                        getFilteredFuelRecords().map((r, index) => r.id || index.toString()),
+                                        getFilteredFuelRecords().map((r, index) => r.timestamp || index.toString()),
                                       )
                                     } else {
                                       setSelectedFuelRecords([])
@@ -1301,12 +1104,12 @@ const Vehicles = () => {
                             {getFilteredFuelRecords()
                               .slice(0, 20)
                               .map((record, index) => (
-                                <TableRow key={record.id || index}>
+                                <TableRow key={record.timestamp || index}>
                                   <TableCell>
                                     <Checkbox
-                                      checked={selectedFuelRecords.includes(record.id || index.toString())}
+                                      checked={selectedFuelRecords.includes(record.timestamp || index.toString())}
                                       onCheckedChange={(checked) => {
-                                        const recordId = record.id || index.toString()
+                                        const recordId = record.timestamp || index.toString()
                                         if (checked) {
                                           setSelectedFuelRecords([...selectedFuelRecords, recordId])
                                         } else {
@@ -1318,8 +1121,8 @@ const Vehicles = () => {
                                   <TableCell className="font-mono text-xs">
                                     {new Date(record.timestamp).toLocaleString()}
                                   </TableCell>
-                                  <TableCell className={record.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>
-                                    {record.fuel_liters}L
+                                  <TableCell className={record.total_fuel <= 15 ? "text-red-600 font-semibold" : ""}>
+                                    {record.total_fuel}L
                                   </TableCell>
                                   <TableCell>{record.odometer} km</TableCell>
                                   <TableCell>{record.speed} km/h</TableCell>
@@ -1570,29 +1373,28 @@ const Vehicles = () => {
                       <Table>
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Vehicle (Click to View)</TableHead>
+                          <TableHead>License Plate (Click to View)</TableHead>
+                            
                             <TableHead>Type</TableHead>
                             <TableHead>Driver</TableHead>
                             <TableHead>Status</TableHead>
-                            <TableHead>License Plate (Click to View)</TableHead>
+                            <TableHead>Imei</TableHead>
                             <TableHead>Actions</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {filteredVehicles.map((vehicle) => (
                             <TableRow key={vehicle.id} className="hover:bg-muted/50">
-                              <TableCell>
-                                <div>
-                                  <button
-                                    onClick={() => fetchVehicleDetails(vehicle)}
-                                    className="font-semibold text-primary hover:underline cursor-pointer text-left"
-                                    disabled={loadingVehicleId === vehicle.id}
-                                  >
-                                    {vehicle.name}
-                                  </button>
-                                  <div className="text-xs text-muted-foreground font-mono">{vehicle.imei}</div>
-                                </div>
+                            <TableCell>
+                                <button
+                                  onClick={() => fetchVehicleDetails(vehicle)}
+                                  className="font-mono text-primary hover:underline cursor-pointer"
+                                  disabled={loadingVehicleId === vehicle.id}
+                                >
+                                  {vehicle.license_plate}
+                                </button>
                               </TableCell>
+                              
                               <TableCell>
                                 <Badge variant="outline" className="text-xs">
                                   {getVehicleTypeDisplay(vehicle.type)}
@@ -1606,13 +1408,16 @@ const Vehicles = () => {
                               </TableCell>
                               <TableCell>{getStatusBadge(vehicle)}</TableCell>
                               <TableCell>
-                                <button
-                                  onClick={() => fetchVehicleDetails(vehicle)}
-                                  className="font-mono text-primary hover:underline cursor-pointer"
-                                  disabled={loadingVehicleId === vehicle.id}
-                                >
-                                  {vehicle.license_plate}
-                                </button>
+                                <div>
+                                  <button
+                                    onClick={() => fetchVehicleDetails(vehicle)}
+                                    className="font-semibold text-primary hover:underline cursor-pointer text-left"
+                                    disabled={loadingVehicleId === vehicle.id}
+                                  >
+                                    {vehicle.name}
+                                  </button>
+                                  <div className="text-xs text-muted-foreground font-mono">{vehicle.imei}</div>
+                                </div>
                               </TableCell>
                               <TableCell>
                                 <Button

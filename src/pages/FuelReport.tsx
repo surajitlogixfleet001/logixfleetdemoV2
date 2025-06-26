@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { SidebarProvider,SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/AppSidebar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -33,8 +33,8 @@ import {
 } from "recharts"
 import { Fuel, Download, AlertTriangle, TrendingUp, TrendingDown, Gauge, Loader2, RefreshCw } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Progress } from "@/components/ui/progress"
 import { Input } from "@/components/ui/input"
+import { useCachedApi } from "@/hooks/use-cached-api"
 
 interface Vehicle {
   id: number
@@ -160,10 +160,10 @@ const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
   const records: FuelRecord[] = []
   const now = new Date()
   let recordId = 1
-  
+
   // Create records for each vehicle
   demoVehicles.forEach((vehicle, vehicleIndex) => {
-    let currentFuel = 180 + (vehicleIndex * 30) // Different starting fuel levels
+    let currentFuel = 180 + vehicleIndex * 30 // Different starting fuel levels
 
     for (let i = count; i >= 0; i--) {
       const timestamp = new Date(now.getTime() - i * 15 * 60 * 1000 + vehicleIndex * 1000) // Add small offset to avoid exact duplicates
@@ -181,7 +181,7 @@ const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
         id: `record-${recordId++}`, // Unique ID for each record
         timestamp: timestamp.toISOString(),
         fuel_liters: Math.round(currentFuel * 10) / 10,
-        odometer: 50000 + (count - i) * 2 + (vehicleIndex * 1000),
+        odometer: 50000 + (count - i) * 2 + vehicleIndex * 1000,
         latitude: 40.7128 + (Math.random() - 0.5) * 0.1,
         longitude: -74.006 + (Math.random() - 0.5) * 0.1,
         speed: Math.random() < 0.3 ? 0 : Math.random() * 80 + 20,
@@ -189,7 +189,7 @@ const generateDemoFuelRecords = (count = 100): FuelRecord[] => {
         movement: Math.random() < 0.7,
         satellites: Math.floor(Math.random() * 8) + 4,
         external_voltage: 12.0 + Math.random() * 2,
-        engine_hours: 1000 + (count - i) * 0.25 + (vehicleIndex * 100),
+        engine_hours: 1000 + (count - i) * 0.25 + vehicleIndex * 100,
         vehicle_id: vehicle.id,
       })
     }
@@ -234,15 +234,17 @@ const FuelReport: React.FC = () => {
   const [filterByLicensePlate, setFilterByLicensePlate] = useState("")
   const [filterByIMEI, setFilterByIMEI] = useState("")
 
+  const { cachedApi, clearCache } = useCachedApi()
+
   // Helper function to get vehicle by ID
   const getVehicleById = (vehicleId: number): Vehicle | undefined => {
-    return vehicles.find(v => v.id === vehicleId)
+    return vehicles.find((v) => v.id === vehicleId)
   }
 
   // Load demo data immediately on component mount
   const loadDemoData = () => {
     const demoRecords = generateDemoFuelRecords(100)
-    
+
     setVehicles(demoVehicles)
     setFuelRecords(demoRecords)
     setTableData(demoRecords.slice(0, 50)) // First 50 for table
@@ -261,33 +263,37 @@ const FuelReport: React.FC = () => {
   // Simulate API call for real data
   const fetchRealData = async () => {
     setIsRefreshing(true)
-    
+
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Simulate fetching real data (replace with actual API calls)
-      const realRecords = generateDemoFuelRecords(150) // Simulate more real data
-      
-      setVehicles(demoVehicles) // In real app, fetch from API
-      setFuelRecords(realRecords)
-      setTableData(realRecords.slice(0, 50))
-      setFilteredData(realRecords.slice(0, 50))
+      // Use cached API for vehicles
+      const vehiclesData = await cachedApi("/vehicles/", { ttl: 10 * 60 * 1000 }) // 10 minutes
+
+      // Use cached API for fuel records
+      const fuelData = await cachedApi("/fuel-records/", { ttl: 3 * 60 * 1000 }) // 3 minutes
+
+      setVehicles(vehiclesData.fleet_overview || [])
+      setFuelRecords(fuelData.fuel_records || [])
+      setTableData(fuelData.fuel_records?.slice(0, 50) || [])
+      setFilteredData(fuelData.fuel_records?.slice(0, 50) || [])
 
       setPaginationState({
         currentPage: 1,
-        totalPages: Math.ceil(realRecords.length / 50),
-        totalItems: realRecords.length,
+        totalPages: Math.ceil((fuelData.fuel_records?.length || 0) / 50),
+        totalItems: fuelData.fuel_records?.length || 0,
         pageSize: 50,
-        hasNext: realRecords.length > 50,
+        hasNext: (fuelData.fuel_records?.length || 0) > 50,
         hasPrevious: false,
       })
-      
     } catch (error) {
       console.error("Failed to fetch real data:", error)
     } finally {
       setIsRefreshing(false)
     }
+  }
+
+  const handleManualRefresh = () => {
+    clearCache() // Clear all cache
+    fetchRealData() // Fetch fresh data
   }
 
   // Load demo data immediately when component mounts
@@ -312,7 +318,7 @@ const FuelReport: React.FC = () => {
 
     // Vehicle filter by selection
     if (selectedVehicle !== "all") {
-      const vehicle = vehicles.find(v => v.license_plate === selectedVehicle)
+      const vehicle = vehicles.find((v) => v.license_plate === selectedVehicle)
       if (vehicle) {
         filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
       }
@@ -320,9 +326,7 @@ const FuelReport: React.FC = () => {
 
     // Vehicle filter by license plate
     if (filterByLicensePlate) {
-      const vehicle = vehicles.find(v => 
-        v.license_plate.toLowerCase().includes(filterByLicensePlate.toLowerCase())
-      )
+      const vehicle = vehicles.find((v) => v.license_plate.toLowerCase().includes(filterByLicensePlate.toLowerCase()))
       if (vehicle) {
         filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
       }
@@ -330,9 +334,7 @@ const FuelReport: React.FC = () => {
 
     // Vehicle filter by IMEI
     if (filterByIMEI) {
-      const vehicle = vehicles.find(v => 
-        v.imei.toLowerCase().includes(filterByIMEI.toLowerCase())
-      )
+      const vehicle = vehicles.find((v) => v.imei.toLowerCase().includes(filterByIMEI.toLowerCase()))
       if (vehicle) {
         filtered = filtered.filter((d) => d.vehicle_id === vehicle.id)
       }
@@ -344,19 +346,19 @@ const FuelReport: React.FC = () => {
     // Apply pagination to filtered results
     const startIndex = (paginationState.currentPage - 1) * 50
     const paginatedFiltered = filtered.slice(startIndex, startIndex + 50)
-    
+
     setFilteredData(paginatedFiltered)
     setTableData(paginatedFiltered)
-    
+
     // Update pagination state
-    setPaginationState(prev => ({
+    setPaginationState((prev) => ({
       ...prev,
       totalItems: filtered.length,
       totalPages: Math.ceil(filtered.length / 50),
       hasNext: filtered.length > startIndex + 50,
       hasPrevious: startIndex > 0,
     }))
-    
+
     setSelectedRecords([])
   }
 
@@ -366,22 +368,22 @@ const FuelReport: React.FC = () => {
     setFilterByLicensePlate("")
     setFilterByIMEI("")
     setSelectedVehicle("all")
-    
+
     // Reset to original data
     setAllFilteredData(fuelRecords)
     const startIndex = (paginationState.currentPage - 1) * 50
     const resetData = fuelRecords.slice(startIndex, startIndex + 50)
     setFilteredData(resetData)
     setTableData(resetData)
-    
-    setPaginationState(prev => ({
+
+    setPaginationState((prev) => ({
       ...prev,
       totalItems: fuelRecords.length,
       totalPages: Math.ceil(fuelRecords.length / 50),
       hasNext: fuelRecords.length > startIndex + 50,
       hasPrevious: startIndex > 0,
     }))
-    
+
     setSelectedRecords([])
   }
 
@@ -399,13 +401,15 @@ const FuelReport: React.FC = () => {
   const downloadCSV = (downloadAll = false) => {
     // For "Download All", use all filtered data; for "Download Selected", use only selected records
     const dataToDownload = downloadAll
-      ? allFilteredData.length > 0 ? allFilteredData : fuelRecords // Download all filtered data or all data if no filters applied
+      ? allFilteredData.length > 0
+        ? allFilteredData
+        : fuelRecords // Download all filtered data or all data if no filters applied
       : filteredData.filter((d) => selectedRecords.includes(d.id)) // Use unique id instead of timestamp
-    
+
     if (!downloadAll && dataToDownload.length === 0) {
       return
     }
-    
+
     const headers = [
       "Date and Time",
       "Vehicle",
@@ -421,7 +425,7 @@ const FuelReport: React.FC = () => {
       "External Voltage",
       "Engine Hours",
     ]
-    
+
     const csvRows = [headers.join(",")]
     dataToDownload.forEach((d) => {
       const vehicle = getVehicleById(d.vehicle_id)
@@ -442,7 +446,7 @@ const FuelReport: React.FC = () => {
       ].join(",")
       csvRows.push(row)
     })
-    
+
     const blob = new Blob([csvRows.join("\n")], { type: "text/csv" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -476,9 +480,9 @@ const FuelReport: React.FC = () => {
 
     // Filter by selected chart vehicle
     if (selectedChartVehicle !== "all") {
-      const vehicle = vehicles.find(v => v.license_plate === selectedChartVehicle)
+      const vehicle = vehicles.find((v) => v.license_plate === selectedChartVehicle)
       if (vehicle) {
-        chartData = chartData.filter(d => d.vehicle_id === vehicle.id)
+        chartData = chartData.filter((d) => d.vehicle_id === vehicle.id)
       }
     }
 
@@ -580,8 +584,7 @@ const FuelReport: React.FC = () => {
   const isLowFuel = currentLevel <= 15
   const trend = currentLevel > prevLevel ? "up" : "down"
 
-  const allCurrentPageSelected =
-    filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.id)) // Use unique id instead of timestamp
+  const allCurrentPageSelected = filteredData.length > 0 && filteredData.every((d) => selectedRecords.includes(d.id)) // Use unique id instead of timestamp
 
   // Handle page change
   const handlePageChange = (page: number) => {
@@ -589,11 +592,11 @@ const FuelReport: React.FC = () => {
     const startIndex = (page - 1) * 50
     const endIndex = startIndex + 50
     const pageData = dataSource.slice(startIndex, endIndex)
-    
+
     setTableData(pageData)
     setFilteredData(pageData)
-    setPaginationState((prev) => ({ 
-      ...prev, 
+    setPaginationState((prev) => ({
+      ...prev,
       currentPage: page,
       hasNext: dataSource.length > endIndex,
       hasPrevious: startIndex > 0,
@@ -609,23 +612,15 @@ const FuelReport: React.FC = () => {
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
-              <SidebarTrigger />
+                <SidebarTrigger />
                 <Fuel className="h-8 w-8 text-primary" />
                 Fuel Monitoring Report
               </h1>
               <p className="text-muted-foreground">Analyze fuel consumption and sensor data across your fleet</p>
             </div>
             <div className="flex gap-2">
-              <Button 
-                onClick={fetchRealData} 
-                disabled={isRefreshing}
-                className="flex items-center gap-2"
-              >
-                {isRefreshing ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
+              <Button onClick={handleManualRefresh} disabled={isRefreshing} className="flex items-center gap-2">
+                {isRefreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 Refresh
               </Button>
             </div>
@@ -753,11 +748,11 @@ const FuelReport: React.FC = () => {
                       textAnchor="middle"
                       height={80}
                       interval={0}
-                      label={{ 
-                        value: chartTimePeriod === "day" ? "Time Period (Hours)" : "Day of Week", 
-                        position: "insideBottom", 
+                      label={{
+                        value: chartTimePeriod === "day" ? "Time Period (Hours)" : "Day of Week",
+                        position: "insideBottom",
                         offset: -10,
-                        style: { textAnchor: 'middle', fontSize: '14px', fontWeight: 'bold' }
+                        style: { textAnchor: "middle", fontSize: "14px", fontWeight: "bold" },
                       }}
                     />
                     <YAxis
@@ -766,18 +761,8 @@ const FuelReport: React.FC = () => {
                     />
                     <Tooltip content={<CustomTooltip />} />
                     <Legend verticalAlign="top" height={36} />
-                    <ReferenceLine
-                      y={15}
-                      stroke="#dc2626"
-                      strokeDasharray="5 5"
-                      label="Low Fuel (15L)"
-                    />
-                    <ReferenceLine
-                      y={5}
-                      stroke="#991b1b"
-                      strokeDasharray="3 3"
-                      label="Critical (5L)"
-                    />
+                    <ReferenceLine y={15} stroke="#dc2626" strokeDasharray="5 5" label="Low Fuel (15L)" />
+                    <ReferenceLine y={5} stroke="#991b1b" strokeDasharray="3 3" label="Critical (5L)" />
                     <Line
                       type="monotone"
                       dataKey="level"
@@ -813,7 +798,12 @@ const FuelReport: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div>
                     <Label htmlFor="start-date">Start Date</Label>
-                    <Input id="start-date" type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                    <Input
+                      id="start-date"
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
                   </div>
                   <div>
                     <Label htmlFor="end-date">End Date</Label>
@@ -882,7 +872,9 @@ const FuelReport: React.FC = () => {
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{vehicle?.name || "Unknown"}</span>
-                              <span className="text-xs text-muted-foreground">{vehicle?.license_plate || "Unknown"}</span>
+                              <span className="text-xs text-muted-foreground">
+                                {vehicle?.license_plate || "Unknown"}
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className={data.fuel_liters <= 15 ? "text-red-600 font-semibold" : ""}>

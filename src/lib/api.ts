@@ -2,7 +2,7 @@ import axios from 'axios';
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: 'https://palmconnect.co/',
+  baseURL: 'https://palmconnect.co/api',
 });
 
 // Add request interceptor to include auth token

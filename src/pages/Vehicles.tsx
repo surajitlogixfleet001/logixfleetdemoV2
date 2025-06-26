@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -32,13 +32,14 @@ import {
   Loader2,
   Plus,
   User,
+  RefreshCw,
 } from "lucide-react"
 import { AppSidebar } from "@/components/AppSidebar"
 import { useToast } from "@/hooks/use-toast"
+import { useCachedApi } from "@/hooks/use-cached-api"
+import { dataCache } from "@/lib/cache"
 import api from "@/lib/api"
 import { Progress } from "@/components/ui/progress"
-// Remove this line:
-// import { useRouter } from "next/navigation"
 
 // Add this instead:
 const useRouter = () => ({
@@ -241,15 +242,25 @@ const mockFuelEvents: FuelEvent[] = [
 
 const Vehicles = () => {
   const [searchTerm, setSearchTerm] = useState("")
-  const [vehicles, setVehicles] = useState<VehicleData[]>([])
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleDetail | null>(null)
   const [vehicleFuelRecords, setVehicleFuelRecords] = useState<FuelRecord[]>([])
   const [vehicleFuelEvents, setVehicleFuelEvents] = useState<FuelEvent[]>([])
-  const [loading, setLoading] = useState(true)
   const [loadingVehicleId, setLoadingVehicleId] = useState<number | null>(null)
-  const [error, setError] = useState<string | null>(null)
   const { toast } = useToast()
   const router = useRouter()
+
+  // Use cached API for vehicles list
+  const {
+    data: vehiclesData,
+    loading: vehiclesLoading,
+    error: vehiclesError,
+    refetch: refetchVehicles,
+    clearCache: clearVehiclesCache,
+  } = useCachedApi<{ fleet_overview: VehicleData[] }>("/vehicles/", "vehicles-list", {
+    ttl: 10 * 60 * 1000, // 10 minutes cache
+  })
+
+  const vehicles = vehiclesData?.fleet_overview || []
 
   // Create Vehicle Dialog States
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -259,6 +270,8 @@ const Vehicles = () => {
     type: "car",
     license_plate: "",
     fuel_capacity: "",
+    fuel_type: "diesel",
+    fuel_tanks: "1",
     driver_name: "",
     driver_phone: "",
     notes: "",
@@ -283,24 +296,6 @@ const Vehicles = () => {
 
   // Navigation state to track where we came from
   const [navigationSource, setNavigationSource] = useState<string | null>(null)
-
-  // Fetch vehicles list
-  useEffect(() => {
-    const fetchVehicles = async () => {
-      try {
-        setLoading(true)
-        const response = await api.get("/vehicles/")
-        setVehicles(response.data.fleet_overview)
-        setLoading(false)
-      } catch (err) {
-        console.error("Error fetching vehicles:", err)
-        setError("Failed to fetch vehicle data. Please try again later.")
-        setLoading(false)
-      }
-    }
-
-    fetchVehicles()
-  }, [])
 
   // Enhanced GPS Connection Simulation Effect - Seamless connection
   useEffect(() => {
@@ -337,7 +332,7 @@ const Vehicles = () => {
     }
   }, [selectedVehicle, isDataReady])
 
-  // Create Vehicle Handler
+  // Create Vehicle Handler with cache invalidation
   const handleCreateVehicle = async () => {
     try {
       // Validate required fields
@@ -350,21 +345,28 @@ const Vehicles = () => {
         return
       }
 
-      // In a real app, this would be an API call
-      const vehicleData: VehicleData = {
-        id: Date.now(), // Generate temporary ID
-        name: newVehicle.name,
+      // Prepare API payload
+      const payload = {
         imei: newVehicle.imei,
-        type: newVehicle.type,
         license_plate: newVehicle.license_plate,
-        is_active: true,
         driver_name: newVehicle.driver_name || "Not Assigned",
-        driver_phone: newVehicle.driver_phone || "Not Provided",
-        status: "ACTIVE",
+        driver_phone: newVehicle.driver_phone || "",
+        additional_info: {
+          number_of_fuel_tanks: newVehicle.fuel_tanks || "1",
+          fuel_type: newVehicle.fuel_type || "diesel",
+          total_fuel_capacity: newVehicle.fuel_capacity ? `${newVehicle.fuel_capacity}L` : "80L",
+        },
+        type: newVehicle.type,
       }
 
-      // Add to vehicles list
-      setVehicles((prev) => [vehicleData, ...prev])
+      // Make API call
+      const response = await api.post("/vehicles/", payload)
+
+      // Clear vehicles cache to force refresh
+      clearVehiclesCache()
+
+      // Refetch vehicles data
+      await refetchVehicles()
 
       // Reset form and close dialog
       setNewVehicle({
@@ -373,6 +375,8 @@ const Vehicles = () => {
         type: "car",
         license_plate: "",
         fuel_capacity: "",
+        fuel_type: "diesel",
+        fuel_tanks: "1",
         driver_name: "",
         driver_phone: "",
         notes: "",
@@ -383,17 +387,35 @@ const Vehicles = () => {
         title: "Vehicle Created",
         description: `${newVehicle.name} has been successfully added to your fleet.`,
       })
-    } catch (error) {
+    } catch (error: any) {
+      console.error("Error creating vehicle:", error)
+
+      // Handle specific API errors
+      let errorMessage = "Failed to create vehicle. Please try again."
+
+      if (error.response?.data) {
+        // Extract specific error messages from API response
+        const apiErrors = error.response.data
+        if (typeof apiErrors === "object") {
+          const errorMessages = Object.entries(apiErrors)
+            .map(([field, messages]) => `${field}: ${Array.isArray(messages) ? messages.join(", ") : messages}`)
+            .join("\n")
+          errorMessage = errorMessages || errorMessage
+        } else if (typeof apiErrors === "string") {
+          errorMessage = apiErrors
+        }
+      }
+
       toast({
         title: "Error",
-        description: "Failed to create vehicle. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       })
     }
   }
 
-  // Simplified fetchVehicleDetails - just redirect immediately
-  const fetchVehicleDetails = (vehicle: VehicleData) => {
+  // Cached vehicle details fetching
+  const fetchVehicleDetails = useCallback((vehicle: VehicleData) => {
     setLoadingVehicleId(vehicle.id)
 
     // Create a basic vehicle detail object for immediate display
@@ -403,31 +425,44 @@ const Vehicles = () => {
       notes: "",
     }
 
-    // Immediately set mock fuel events data for the selected vehicle
-    let vehicleMockEvents = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
+    // Check cache for vehicle-specific data
+    const cacheKey = `vehicle-events-${vehicle.license_plate}`
+    const cachedEvents = dataCache.get<FuelEvent[]>(cacheKey)
 
-    // If no mock events exist for this vehicle, create some generic ones
-    if (vehicleMockEvents.length === 0) {
-      vehicleMockEvents = [
-        {
-          id: `mock_${vehicle.license_plate}_001`,
-          event_type: "fill",
-          vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
-          timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
-          location: { latitude: -1.2921, longitude: 36.8219 },
-          fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
-          vehicle_state: { speed: 0, ignition: false, stationary: true },
-        },
-        {
-          id: `mock_${vehicle.license_plate}_002`,
-          event_type: "theft",
-          vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
-          timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
-          location: { latitude: -1.2845, longitude: 36.8156 },
-          fuel_change: { amount_liters: -12.3, before_liters: 48.5, after_liters: 36.2 },
-          vehicle_state: { speed: 0, ignition: false, stationary: true },
-        },
-      ]
+    let vehicleMockEvents: FuelEvent[]
+
+    if (cachedEvents) {
+      vehicleMockEvents = cachedEvents
+    } else {
+      // Generate mock events and cache them
+      vehicleMockEvents = mockFuelEvents.filter((e) => e.vehicle.license_plate === vehicle.license_plate)
+
+      // If no mock events exist for this vehicle, create some generic ones
+      if (vehicleMockEvents.length === 0) {
+        vehicleMockEvents = [
+          {
+            id: `mock_${vehicle.license_plate}_001`,
+            event_type: "fill",
+            vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
+            timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString(),
+            location: { latitude: -1.2921, longitude: 36.8219 },
+            fuel_change: { amount_liters: 45.5, before_liters: 15.2, after_liters: 60.7 },
+            vehicle_state: { speed: 0, ignition: false, stationary: true },
+          },
+          {
+            id: `mock_${vehicle.license_plate}_002`,
+            event_type: "theft",
+            vehicle: { license_plate: vehicle.license_plate, name: vehicle.name },
+            timestamp: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
+            location: { latitude: -1.2845, longitude: 36.8156 },
+            fuel_change: { amount_liters: -12.3, before_liters: 48.5, after_liters: 36.2 },
+            vehicle_state: { speed: 0, ignition: false, stationary: true },
+          },
+        ]
+      }
+
+      // Cache the events
+      dataCache.set(cacheKey, vehicleMockEvents, 5 * 60 * 1000) // 5 minutes cache
     }
 
     setSelectedVehicle(basicVehicleDetail)
@@ -435,18 +470,37 @@ const Vehicles = () => {
     setVehicleFuelEvents(vehicleMockEvents)
     setIsDataReady(false)
     setLoadingVehicleId(null)
-  }
+  }, [])
 
-  // New function to fetch data after being on details page
-  const fetchVehicleData = async (vehicle: VehicleDetail) => {
+  // Cached vehicle data fetching
+  const fetchVehicleData = useCallback(async (vehicle: VehicleDetail) => {
     try {
+      const vehicleCacheKey = `vehicle-details-${vehicle.imei}`
+      const fuelRecordsCacheKey = `fuel-records-${vehicle.imei}`
+
+      // Check cache first
+      const cachedVehicleData = dataCache.get<VehicleDetail>(vehicleCacheKey)
+      const cachedFuelRecords = dataCache.get<{ fuel_records: FuelRecord[] }>(fuelRecordsCacheKey)
+
+      if (cachedVehicleData && cachedFuelRecords) {
+        setVehicleFuelRecords(cachedFuelRecords.fuel_records || [])
+        setSelectedVehicle(cachedVehicleData)
+        return true
+      }
+
+      // Fetch from API if not cached
       const [vehicleResponse, fuelRecordsResponse] = await Promise.all([
         api.get(`/vehicles/${vehicle.imei}/`),
         api.get(`/vehicles/${vehicle.imei}/fuel-records/`),
       ])
 
       const vehicleData = vehicleResponse.data
-      const fuelRecords = fuelRecordsResponse.data.fuel_records || []
+      const fuelRecordsData = fuelRecordsResponse.data
+      const fuelRecords = fuelRecordsData.fuel_records || []
+
+      // Cache the data
+      dataCache.set(vehicleCacheKey, vehicleData, 5 * 60 * 1000) // 5 minutes cache
+      dataCache.set(fuelRecordsCacheKey, fuelRecordsData, 3 * 60 * 1000) // 3 minutes cache for fuel records
 
       setVehicleFuelRecords(fuelRecords)
       setSelectedVehicle(vehicleData)
@@ -457,7 +511,7 @@ const Vehicles = () => {
       // Don't show error toast for seamless experience
       return false // Failure
     }
-  }
+  }, [])
 
   // Handle event card clicks to navigate to FuelTheft page with filters
   const handleEventCardClick = (eventType: string) => {
@@ -499,6 +553,27 @@ const Vehicles = () => {
     setSelectedVehicle(null)
     setIsDataReady(false)
     setNavigationSource(null)
+  }
+
+  // Manual refresh function
+  const handleManualRefresh = async () => {
+    // Clear all cache
+    dataCache.clear()
+
+    // Refetch vehicles
+    await refetchVehicles()
+
+    // If a vehicle is selected, refetch its data too
+    if (selectedVehicle) {
+      setIsDataReady(false)
+      await fetchVehicleData(selectedVehicle)
+      setIsDataReady(true)
+    }
+
+    toast({
+      title: "Data Refreshed",
+      description: "All data has been refreshed from the server.",
+    })
   }
 
   // Update getFilteredFuelRecords to use date range
@@ -651,12 +726,12 @@ const Vehicles = () => {
     const term = searchTerm.toLowerCase()
     return vehicles.filter((v) => {
       return (
-        v.name.toLowerCase().includes(term) ||
-        v.imei.toLowerCase().includes(term) ||
-        v.license_plate.toLowerCase().includes(term) ||
-        v.type.toLowerCase().includes(term) ||
-        v.driver_name.toLowerCase().includes(term) ||
-        v.driver_phone.toLowerCase().includes(term) ||
+        (v.name?.toLowerCase() || "").includes(term) ||
+        (v.imei?.toLowerCase() || "").includes(term) ||
+        (v.license_plate?.toLowerCase() || "").includes(term) ||
+        (v.type?.toLowerCase() || "").includes(term) ||
+        (v.driver_name?.toLowerCase() || "").includes(term) ||
+        (v.driver_phone?.toLowerCase() || "").includes(term) ||
         (v.is_active ? "active" : "inactive").includes(term)
       )
     })
@@ -1313,112 +1388,147 @@ const Vehicles = () => {
                   </div>
                 </div>
 
-                {/* Create Vehicle Button */}
-                <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button className="flex items-center gap-2">
-                      <Plus className="h-4 w-4" />
-                      Create Vehicle
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-                    <DialogHeader>
-                      <DialogTitle>Create New Vehicle</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="vehicle-name">Vehicle Name *</Label>
-                          <Input
-                            id="vehicle-name"
-                            placeholder="e.g., Fleet Truck 001"
-                            value={newVehicle.name}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, name: e.target.value }))}
-                          />
+                <div className="flex items-center gap-4">
+                  {/* Manual Refresh Button */}
+                  <Button variant="outline" size="sm" onClick={handleManualRefresh} className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+
+                  {/* Create Vehicle Button */}
+                  <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="flex items-center gap-2">
+                        <Plus className="h-4 w-4" />
+                        Create Vehicle
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                      <DialogHeader>
+                        <DialogTitle>Create New Vehicle</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="vehicle-name">Vehicle Name *</Label>
+                            <Input
+                              id="vehicle-name"
+                              placeholder="e.g., Fleet Truck 001"
+                              value={newVehicle.name}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="vehicle-imei">IMEI *</Label>
+                            <Input
+                              id="vehicle-imei"
+                              placeholder="e.g., 123456789012345"
+                              value={newVehicle.imei}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, imei: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="vehicle-type">Vehicle Type</Label>
+                            <Select
+                              value={newVehicle.type}
+                              onValueChange={(value) => setNewVehicle((prev) => ({ ...prev, type: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="car">Car</SelectItem>
+                                <SelectItem value="truck">Truck</SelectItem>
+                                <SelectItem value="bus">Bus</SelectItem>
+                                <SelectItem value="motorcycle">Motorcycle</SelectItem>
+                                <SelectItem value="other">Other</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="license-plate">License Plate *</Label>
+                            <Input
+                              id="license-plate"
+                              placeholder="e.g., KDA381X"
+                              value={newVehicle.license_plate}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, license_plate: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="fuel-capacity">Fuel Capacity (Liters)</Label>
+                            <Input
+                              id="fuel-capacity"
+                              type="number"
+                              placeholder="e.g., 80"
+                              value={newVehicle.fuel_capacity}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, fuel_capacity: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="fuel-type">Fuel Type</Label>
+                            <Select
+                              value={newVehicle.fuel_type || "diesel"}
+                              onValueChange={(value) => setNewVehicle((prev) => ({ ...prev, fuel_type: value }))}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="diesel">Diesel</SelectItem>
+                                <SelectItem value="petrol">Petrol</SelectItem>
+                                <SelectItem value="electric">Electric</SelectItem>
+                                <SelectItem value="hybrid">Hybrid</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="fuel-tanks">Number of Fuel Tanks</Label>
+                            <Input
+                              id="fuel-tanks"
+                              type="number"
+                              placeholder="e.g., 1"
+                              value={newVehicle.fuel_tanks || "1"}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, fuel_tanks: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="driver-name">Driver Name</Label>
+                            <Input
+                              id="driver-name"
+                              placeholder="e.g., John Doe"
+                              value={newVehicle.driver_name}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="driver-phone">Driver Phone</Label>
+                            <Input
+                              id="driver-phone"
+                              placeholder="e.g., +1234567890"
+                              value={newVehicle.driver_phone}
+                              onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_phone: e.target.value }))}
+                            />
+                          </div>
                         </div>
                         <div>
-                          <Label htmlFor="vehicle-imei">IMEI *</Label>
-                          <Input
-                            id="vehicle-imei"
-                            placeholder="e.g., 123456789012345"
-                            value={newVehicle.imei}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, imei: e.target.value }))}
+                          <Label htmlFor="notes">Notes</Label>
+                          <Textarea
+                            id="notes"
+                            placeholder="Additional notes about the vehicle..."
+                            value={newVehicle.notes}
+                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, notes: e.target.value }))}
                           />
                         </div>
-                        <div>
-                          <Label htmlFor="vehicle-type">Vehicle Type</Label>
-                          <Select
-                            value={newVehicle.type}
-                            onValueChange={(value) => setNewVehicle((prev) => ({ ...prev, type: value }))}
-                          >
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="car">Car</SelectItem>
-                              <SelectItem value="truck">Truck</SelectItem>
-                              <SelectItem value="bus">Bus</SelectItem>
-                              <SelectItem value="motorcycle">Motorcycle</SelectItem>
-                              <SelectItem value="other">Other</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label htmlFor="license-plate">License Plate *</Label>
-                          <Input
-                            id="license-plate"
-                            placeholder="e.g., KDA381X"
-                            value={newVehicle.license_plate}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, license_plate: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="fuel-capacity">Fuel Capacity (Liters)</Label>
-                          <Input
-                            id="fuel-capacity"
-                            type="number"
-                            placeholder="e.g., 80"
-                            value={newVehicle.fuel_capacity}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, fuel_capacity: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="driver-name">Driver Name</Label>
-                          <Input
-                            id="driver-name"
-                            placeholder="e.g., John Doe"
-                            value={newVehicle.driver_name}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_name: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="driver-phone">Driver Phone</Label>
-                          <Input
-                            id="driver-phone"
-                            placeholder="e.g., +1234567890"
-                            value={newVehicle.driver_phone}
-                            onChange={(e) => setNewVehicle((prev) => ({ ...prev, driver_phone: e.target.value }))}
-                          />
+                        <div className="flex justify-end gap-2 pt-4">
+                          <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateVehicle}>Create Vehicle</Button>
                         </div>
                       </div>
-                      <div>
-                        <Label htmlFor="notes">Notes</Label>
-                        <Textarea
-                          id="notes"
-                          placeholder="Additional notes about the vehicle..."
-                          value={newVehicle.notes}
-                          onChange={(e) => setNewVehicle((prev) => ({ ...prev, notes: e.target.value }))}
-                        />
-                      </div>
-                      <div className="flex justify-end gap-2 pt-4">
-                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleCreateVehicle}>Create Vehicle</Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </div>
 
               {/* Vehicles Table */}
@@ -1438,18 +1548,21 @@ const Vehicles = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  {loading ? (
+                  {vehiclesLoading ? (
                     <div className="flex items-center justify-center h-64">
                       <div className="text-center">
                         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
                         <p className="mt-4 text-muted-foreground">Loading vehicles...</p>
                       </div>
                     </div>
-                  ) : error ? (
+                  ) : vehiclesError ? (
                     <div className="flex items-center justify-center h-64">
                       <div className="text-center text-destructive">
                         <AlertTriangle className="h-10 w-10 mx-auto mb-2" />
-                        <p>{error}</p>
+                        <p>{vehiclesError}</p>
+                        <Button variant="outline" onClick={handleManualRefresh} className="mt-4">
+                          Try Again
+                        </Button>
                       </div>
                     </div>
                   ) : (

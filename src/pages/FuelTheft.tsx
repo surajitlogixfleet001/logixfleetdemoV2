@@ -25,7 +25,7 @@ import {
 } from "recharts"
 import { ShieldAlert, Download, Eye, MapPin, Fuel, Clock, AlertTriangle, Loader2, RefreshCw } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import api from "@/lib/api"
+import { useCachedApi } from "@/hooks/use-cached-api"
 
 interface Vehicle {
   id: number
@@ -532,6 +532,8 @@ const FuelTheft = () => {
   const [selectAll, setSelectAll] = useState(false)
   const [reportPeriod, setReportPeriod] = useState<"daily" | "weekly" | "monthly">("daily")
 
+  const { cachedApi, clearCache } = useCachedApi()
+
   // Get unique vehicles from the data
   const uniqueVehicles = useMemo(() => {
     return vehicles.map((v) => ({
@@ -585,18 +587,18 @@ const FuelTheft = () => {
   const fetchVehicles = useCallback(async () => {
     try {
       console.log("🚗 Fetching vehicles...")
-      const response = await api.get("/vehicles/")
-      console.log("🚗 Vehicles response:", response.data)
-      const vehiclesData = response.data.fleet_overview || []
-      setVehicles(vehiclesData)
-      console.log("🚗 Vehicles set:", vehiclesData.length, "vehicles")
-      return vehiclesData
+      const vehiclesData = await cachedApi("/vehicles/", { ttl: 10 * 60 * 1000 }) // 10 minutes
+      console.log("🚗 Vehicles response:", vehiclesData)
+      const vehicles = vehiclesData.fleet_overview || []
+      setVehicles(vehicles)
+      console.log("🚗 Vehicles set:", vehicles.length, "vehicles")
+      return vehicles
     } catch (err: unknown) {
       console.error("❌ Error fetching vehicles:", err)
       setError("Failed to fetch vehicles data")
       return []
     }
-  }, [])
+  }, [cachedApi])
 
   // Fetch all events for chart (company-wide or vehicle-specific)
   const fetchAllEventsForChart = useCallback(async () => {
@@ -604,34 +606,31 @@ const FuelTheft = () => {
       setChartLoading(true)
       console.log("📊 Fetching chart data for vehicle filter:", selectedVehicleFilter)
 
-      // Build URL - always start with base endpoint
       let url = "/fuel-events/"
       const params = new URLSearchParams()
 
-      // Add vehicle filter if not "all"
       if (selectedVehicleFilter && selectedVehicleFilter !== "all") {
         params.append("license_plate", selectedVehicleFilter)
       }
 
-      // Add params to URL if any
       if (params.toString()) {
         url += "?" + params.toString()
       }
 
       console.log("📊 Chart API URL:", url)
 
-      const response = await api.get(url)
-      console.log("📊 Chart API response:", response.data)
+      // Use cached API with 5 minute TTL for fuel events
+      const response = await cachedApi(url, { ttl: 5 * 60 * 1000 })
+      console.log("📊 Chart API response:", response)
 
-      // Handle different response formats
       let eventsData: FuelEvent[] = []
 
-      if (response.data.events && Array.isArray(response.data.events)) {
-        eventsData = response.data.events
-      } else if (Array.isArray(response.data)) {
-        eventsData = response.data
+      if (response.events && Array.isArray(response.events)) {
+        eventsData = response.events
+      } else if (Array.isArray(response)) {
+        eventsData = response
       } else {
-        console.warn("📊 Unexpected chart data format:", response.data)
+        console.warn("📊 Unexpected chart data format:", response)
         eventsData = []
       }
 
@@ -640,7 +639,6 @@ const FuelTheft = () => {
       setError(null)
       setIsUsingDemoData(false)
 
-      // Check if data is all zeros and show appropriate message
       if (eventsData.length > 0 && !isDataAllZeros(eventsData)) {
         setIsUsingMockupChart(false)
         toast({
@@ -660,13 +658,12 @@ const FuelTheft = () => {
         setError("Failed to fetch fuel events data")
       }
 
-      // Load demo data on error
       loadDemoData()
       return []
     } finally {
       setChartLoading(false)
     }
-  }, [selectedVehicleFilter, toast, isDataAllZeros, loadDemoData])
+  }, [selectedVehicleFilter, toast, isDataAllZeros, loadDemoData, cachedApi])
 
   // Fetch table data with pagination (company-wide or vehicle-specific)
   const fetchTableData = useCallback(async (page: number): Promise<FuelEvent[]> => {
@@ -674,6 +671,12 @@ const FuelTheft = () => {
     return []
     // Uncomment and implement the actual logic when needed
   }, [])
+
+  const handleManualRefresh = () => {
+    clearCache() // Clear all cache
+    fetchAllEventsForChart() // Fetch fresh data
+    fetchVehicles() // Refresh vehicles too
+  }
 
   // Initial data fetch - ALWAYS load company-wide data first
   useEffect(() => {
@@ -1501,7 +1504,7 @@ const FuelTheft = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <Button onClick={fetchAllEventsForChart} variant="outline" size="sm" disabled={chartLoading}>
+                <Button onClick={handleManualRefresh} variant="outline" size="sm" disabled={chartLoading}>
                   {chartLoading ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
                   ) : (

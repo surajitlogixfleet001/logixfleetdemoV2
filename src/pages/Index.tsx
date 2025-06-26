@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge"
 import { ComposedChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, LineChart, Label, Line } from "recharts"
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart"
 import { InfoTooltip } from "@/components/InfoTooltip"
+import { useCachedApi } from "@/hooks/use-cached-api"
 
 // Mock data for fuel events
 const fuelEventData = [
@@ -37,6 +38,33 @@ const Index = () => {
   const [loading, setLoading] = useState(true)
   const [notifications] = useState(3)
   const [showNotifications, setShowNotifications] = useState(false)
+
+  const { cachedApi, clearCache } = useCachedApi()
+
+  const fetchDashboardData = async () => {
+    try {
+      // Fetch various dashboard metrics with different cache TTLs
+      const [vehiclesData, fuelEventsData, efficiencyData] = await Promise.all([
+        cachedApi("/vehicles/", { ttl: 10 * 60 * 1000 }), // 10 minutes
+        cachedApi("/fuel-events/", { ttl: 5 * 60 * 1000 }), // 5 minutes
+        cachedApi("/fleet-efficiency/", { ttl: 15 * 60 * 1000 }), // 15 minutes
+      ])
+
+      // Process and set the data as needed
+      console.log("Dashboard data loaded from cache/API")
+    } catch (error) {
+      console.error("Failed to fetch dashboard data:", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const handleDashboardRefresh = () => {
+    clearCache()
+    fetchDashboardData()
+  }
 
   useEffect(() => {
     setTimeout(() => {
@@ -162,9 +190,7 @@ const Index = () => {
                 <div className="xl:col-span-2">
                   <Card className="h-[400px] md:h-[500px] border-0 shadow-sm">
                     <CardHeader className="pb-4">
-                      <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-              Refill and Theft Graph
-            </h2>
+                      <h2 className="text-xl md:text-2xl font-bold text-gray-800">Refill and Theft Graph</h2>
                     </CardHeader>
                     <CardContent className="h-[320px] md:h-[420px]">
                       <ChartContainer
@@ -212,7 +238,6 @@ const Index = () => {
                                 style={{ fill: "#334155", fontSize: 12, fontWeight: 600 }}
                               />
                               {/* Your original two labels */}
-                           
                             </YAxis>
 
                             <ChartTooltip
@@ -245,57 +270,43 @@ const Index = () => {
 
                 {/* ROI Section */}
                 <div className="space-y-4 md:space-y-6">
-      <Card className="border border-gray-300 ring-1 ring-gray-200 shadow-lg rounded-2xl bg-white hover:shadow-xl transition-shadow">
-        <CardHeader className="pb-4 md:pb-6 border-b border-gray-100">
-          <div className="text-center pt-4">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-800">
-              Fuel Savings Performance
-            </h2>
-          </div>
-        </CardHeader>
+                  <Card className="border border-gray-300 ring-1 ring-gray-200 shadow-lg rounded-2xl bg-white hover:shadow-xl transition-shadow">
+                    <CardHeader className="pb-4 md:pb-6 border-b border-gray-100">
+                      <div className="text-center pt-4">
+                        <h2 className="text-xl md:text-2xl font-bold text-gray-800">Fuel Savings Performance</h2>
+                      </div>
+                    </CardHeader>
 
-        <CardContent className="py-6 px-4 md:px-6 space-y-4">
-          {/* Year-to-Date Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-green-50 border border-green-200 shadow-sm">
-            <Calendar className="h-6 w-6 text-green-600 mr-3" />
-            <div>
-              <div className="text-sm font-medium text-green-800">
-                Yearly Savings
-              </div>
-              <div className="text-lg font-semibold text-green-700">
-                Kshs.47,230
-              </div>
-            </div>
-          </div>
+                    <CardContent className="py-6 px-4 md:px-6 space-y-4">
+                      {/* Year-to-Date Savings */}
+                      <div className="flex items-center p-4 rounded-lg bg-green-50 border border-green-200 shadow-sm">
+                        <Calendar className="h-6 w-6 text-green-600 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-green-800">Yearly Savings</div>
+                          <div className="text-lg font-semibold text-green-700">Kshs.47,230</div>
+                        </div>
+                      </div>
 
-          {/* Quarterly Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-blue-50 border border-blue-200 shadow-sm">
-            <CalendarDays className="h-6 w-6 text-blue-600 mr-3" />
-            <div>
-              <div className="text-sm font-medium text-blue-800">
-                Quarterly Savings
-              </div>
-              <div className="text-lg font-semibold text-blue-700">
-                Kshs.12,450
-              </div>
-            </div>
-          </div>
+                      {/* Quarterly Savings */}
+                      <div className="flex items-center p-4 rounded-lg bg-blue-50 border border-blue-200 shadow-sm">
+                        <CalendarDays className="h-6 w-6 text-blue-600 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-blue-800">Quarterly Savings</div>
+                          <div className="text-lg font-semibold text-blue-700">Kshs.12,450</div>
+                        </div>
+                      </div>
 
-          {/* Monthly Savings */}
-          <div className="flex items-center p-4 rounded-lg bg-orange-50 border border-orange-200 shadow-sm">
-            <CalendarClock className="h-6 w-6 text-orange-600 mr-3" />
-            <div>
-              <div className="text-sm font-medium text-orange-800">
-                Monthly Savings
-              </div>
-              <div className="text-lg font-semibold text-orange-700">
-                Kshs.4,125
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+                      {/* Monthly Savings */}
+                      <div className="flex items-center p-4 rounded-lg bg-orange-50 border border-orange-200 shadow-sm">
+                        <CalendarClock className="h-6 w-6 text-orange-600 mr-3" />
+                        <div>
+                          <div className="text-sm font-medium text-orange-800">Monthly Savings</div>
+                          <div className="text-lg font-semibold text-orange-700">Kshs.4,125</div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
               </div>
             </div>
 

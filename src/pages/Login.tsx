@@ -49,11 +49,6 @@ const Login = () => {
       localStorage.setItem('userFname', full_name);
       localStorage.setItem('isLoggedIn', 'true');
 
-      toast({
-        title: 'Login Successful',
-        description: 'Welcome to Siphy',
-      });
-
       navigate('/dashboard');
     } catch (error: any) {
       toast({

@@ -424,10 +424,6 @@ const Vehicles = () => {
       setIsDataReady(true)
     }
 
-    toast({
-      title: "Data Refreshed",
-      description: "All data has been refreshed from the server.",
-    })
   }
 
   // Update getFilteredFuelRecords to use date range

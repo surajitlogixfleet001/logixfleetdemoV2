@@ -641,10 +641,6 @@ const FuelTheft = () => {
 
       if (eventsData.length > 0 && !isDataAllZeros(eventsData)) {
         setIsUsingMockupChart(false)
-        toast({
-          title: "Chart Data Loaded",
-          description: `Successfully loaded ${eventsData.length} fuel events for chart.`,
-        })
       } else if (eventsData.length > 0 && isDataAllZeros(eventsData)) {
         setIsUsingMockupChart(true)
       }
@@ -859,11 +855,6 @@ const FuelTheft = () => {
     setSelectAll(false)
     setSelectedRecords(new Set())
 
-    // Show filter results
-    toast({
-      title: "Filters Applied",
-      description: `Showing ${filtered.length} of ${tableEvents.length} events`,
-    })
   }, [
     tableEvents,
     startDate,
@@ -989,11 +980,6 @@ const FuelTheft = () => {
       setFuelLevelData(hybridData)
       setIsUsingMockupChart(true)
 
-      toast({
-        title: "Data Gaps Detected",
-        description: `Filling ${hybridData.filter((d) => d.isMockup).length} data gaps with simulated data for better visualization.`,
-        variant: "default",
-      })
 
       return
     }

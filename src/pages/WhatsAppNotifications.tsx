@@ -307,12 +307,12 @@ const WhatsAppNotifications = () => {
                   <p className="text-muted-foreground mt-2">Manage and monitor WhatsApp alerts for your fleet</p>
                 </div>
                 <Dialog open={isNewMessageOpen} onOpenChange={setIsNewMessageOpen}>
-                  <DialogTrigger asChild>
+                  {/*<DialogTrigger asChild>
                     <Button className="flex items-center gap-2 bg-green-600 hover:bg-green-700">
                       <Plus className="h-4 w-4" />
                       Send WhatsApp
                     </Button>
-                  </DialogTrigger>
+                  </DialogTrigger>*/}
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Send New WhatsApp Message</DialogTitle>

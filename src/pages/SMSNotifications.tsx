@@ -260,12 +260,12 @@ const SMSNotifications = () => {
                   <p className="text-muted-foreground mt-2">Manage and monitor SMS alerts for your fleet</p>
                 </div>
                 <Dialog open={isNewSMSOpen} onOpenChange={setIsNewSMSOpen}>
-                  <DialogTrigger asChild>
+                  {/*<DialogTrigger asChild>
                     <Button className="flex items-center gap-2">
                       <Plus className="h-4 w-4" />
                       Send SMS
                     </Button>
-                  </DialogTrigger>
+                  </DialogTrigger>*/}
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Send New SMS</DialogTitle>
